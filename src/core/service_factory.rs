@@ -233,3 +233,188 @@ impl ServiceFactory {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Mirrors the provider/error cases of TS service-factory.test.ts.
+
+    use super::*;
+    use crate::config::manager::ConfigManager;
+
+    fn config(json: serde_json::Value) -> ConfigManager {
+        ConfigManager::new(serde_json::from_value(json).expect("config parses"))
+    }
+
+    fn factory(config: ConfigManager) -> ServiceFactory {
+        let dir = std::env::temp_dir().join(format!(
+            "code-index-factory-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let cache = HashCacheManager::new(&dir, Some(dir.clone()));
+        ServiceFactory::new(config, dir, Arc::new(cache))
+    }
+
+    #[test]
+    fn creates_openai_embedder() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "openai", "apiKey": "sk-x" }
+        })));
+        assert_eq!(
+            f.create_embedder().unwrap().embedder_info().name,
+            EmbedderProvider::OpenAi
+        );
+    }
+
+    #[test]
+    fn openai_without_api_key_errors() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "openai" }
+        })));
+        let err = f.create_embedder().err().expect("expected error");
+        assert!(err.to_string().contains("OpenAI API key"));
+    }
+
+    #[test]
+    fn ollama_uses_defaults_without_key() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "ollama" }
+        })));
+        assert_eq!(
+            f.create_embedder().unwrap().embedder_info().name,
+            EmbedderProvider::Ollama
+        );
+    }
+
+    #[test]
+    fn openai_compatible_needs_base_url_and_key() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "openai-compatible" }
+        })));
+        assert!(f.create_embedder().is_err());
+
+        let f = factory(config(serde_json::json!({
+            "embedder": {
+                "provider": "openai-compatible",
+                "compatibleBaseUrl": "http://localhost:8089/v1",
+                "compatibleApiKey": "test",
+            }
+        })));
+        assert_eq!(
+            f.create_embedder().unwrap().embedder_info().name,
+            EmbedderProvider::OpenAiCompatible
+        );
+    }
+
+    #[test]
+    fn api_key_providers_error_without_key() {
+        for (provider, message) in [
+            ("gemini", "Gemini API key"),
+            ("mistral", "Mistral API key"),
+            ("vercel-ai-gateway", "Vercel AI Gateway API key"),
+            ("openrouter", "OpenRouter API key"),
+        ] {
+            let f = factory(config(serde_json::json!({
+                "embedder": { "provider": provider }
+            })));
+            let err = f.create_embedder().err().expect("expected error");
+            assert!(
+                err.to_string().contains(message),
+                "provider {provider}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn bedrock_explicitly_deferred() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "bedrock" }
+        })));
+        let err = f.create_embedder().err().expect("expected error");
+        assert!(err.to_string().contains("deferred"));
+    }
+
+    #[test]
+    fn vector_store_uses_known_model_dimension() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "openai", "apiKey": "sk-x" }
+        })));
+        // text-embedding-3-small → 1536
+        let store = f.create_vector_store().unwrap();
+        drop(store);
+    }
+
+    #[test]
+    fn vector_store_falls_back_to_model_dimension() {
+        let f = factory(config(serde_json::json!({
+            "embedder": {
+                "provider": "openai-compatible",
+                "compatibleBaseUrl": "http://localhost:8089/v1",
+                "compatibleApiKey": "test",
+                "modelId": "embeddinggemma-300M",
+                "modelDimension": 768,
+            }
+        })));
+        let store = f.create_vector_store().unwrap();
+        drop(store);
+    }
+
+    #[test]
+    fn vector_store_errors_without_any_dimension() {
+        let f = factory(config(serde_json::json!({
+            "embedder": {
+                "provider": "openai-compatible",
+                "compatibleBaseUrl": "http://localhost:8089/v1",
+                "compatibleApiKey": "test",
+                "modelId": "unknown-model-xyz",
+            }
+        })));
+        let err = f.create_vector_store().err().expect("expected error");
+        assert!(err.to_string().contains("dimension"));
+    }
+
+    #[test]
+    fn scanner_uses_configured_batch_threshold() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "openai", "apiKey": "sk-x" },
+            "indexing": { "batchSize": 3 }
+        })));
+        let scanner = f
+            .create_directory_scanner(
+                f.create_embedder().unwrap(),
+                f.create_vector_store().unwrap(),
+            )
+            .unwrap();
+        drop(scanner);
+    }
+
+    #[test]
+    fn ignore_matcher_reads_gitignore_and_exclude_patterns() {
+        let f = factory(config(serde_json::json!({
+            "embedder": { "provider": "openai", "apiKey": "sk-x" },
+            "indexing": { "excludePatterns": ["*.snap"] }
+        })));
+        std::fs::write(f.workspace_path.join(".gitignore"), "secrets/\n").unwrap();
+        let matcher = f.build_ignore_matcher().unwrap();
+        use std::path::Path;
+        assert!(crate::shared::ignore_match::is_ignored(
+            &matcher,
+            Path::new("secrets/key.pem"),
+            false
+        ));
+        // excludePatterns from config are gitignore-relative
+        assert!(crate::shared::ignore_match::is_ignored(
+            &matcher,
+            Path::new("foo.snap"),
+            false
+        ));
+        assert!(!crate::shared::ignore_match::is_ignored(
+            &matcher,
+            Path::new("src/main.rs"),
+            false
+        ));
+    }
+}

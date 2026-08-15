@@ -6,5 +6,6 @@
 pub mod cancellation;
 pub mod constants;
 pub mod embedding_models;
+pub mod ignore_match;
 pub mod supported_extensions;
 pub mod validation;

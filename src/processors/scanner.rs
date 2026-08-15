@@ -444,7 +444,7 @@ impl DirectoryScanner {
                 return false;
             }
             if let Ok(relative) = file_path.strip_prefix(directory) {
-                !self.ignore_matcher.matched(relative, false).is_ignore()
+                !crate::shared::ignore_match::is_ignored(&self.ignore_matcher, relative, false)
             } else {
                 true
             }
