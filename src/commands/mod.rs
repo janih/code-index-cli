@@ -356,6 +356,7 @@ pub async fn watch(
         Some(vector_store),
         factory.build_ignore_matcher()?,
         Some(config_manager.batch_size().max(1) as usize),
+        Some(config_manager.max_file_size_bytes()),
     ));
     let (_keepalive, mut events) = file_watcher.start_notify_stream()?;
 

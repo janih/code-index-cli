@@ -110,8 +110,12 @@ impl Default for SearchConfig {
 #[serde(default, rename_all = "camelCase")]
 pub struct IndexingConfig {
     pub batch_size: u32,
+    /// Largest indexed file (scanner and watcher honor this; TS parses and
+    /// validates it but always uses the built-in 1 MiB constant).
     pub max_file_size_bytes: u64,
     pub exclude_patterns: Vec<String>,
+    /// Accepted for config compatibility but NOT wired into scanning in
+    /// either version — the scanner/parser use the built-in extension list.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_extensions: Option<Vec<String>>,
 }

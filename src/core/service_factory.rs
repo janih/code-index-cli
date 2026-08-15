@@ -178,6 +178,7 @@ impl ServiceFactory {
             Arc::clone(&self.cache_manager) as Arc<dyn CacheManager>,
             self.build_ignore_matcher()?,
             threshold,
+            Some(self.config_manager.max_file_size_bytes()),
         )))
     }
 

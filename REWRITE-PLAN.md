@@ -83,6 +83,14 @@ Deviations found during the port (agreed as TS-gap mirrors):
   `code-index clear && code-index index`. The watcher still deletes
   unconditionally (self-healing on every touch).
 
+- (review round 1) `indexing.maxFileSizeBytes` is honored by the scanner
+  and watcher (TS parses/validates it but always indexes with the 1 MiB
+  constant). `indexing.includeExtensions` remains accepted-but-inert in
+  BOTH versions — documented gap: wiring it means teaching the parser
+  about custom extensions too, deferred.
+- (review round 1, docs) `estimate_tokens` counts bytes where TS counts
+  UTF-16 code units: non-ASCII token estimates run higher, so batches
+  pack slightly smaller. Boundary-level difference only.
 - `--dry-run` is accepted but was never wired into the TS pipeline;
   the Rust port logs a warning instead of pretending it works.
 - Chunk sizing counts bytes where JS counted UTF-16 code units

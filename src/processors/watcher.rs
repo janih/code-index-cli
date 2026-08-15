@@ -87,6 +87,9 @@ pub struct FileWatcher {
     code_parser: Arc<dyn CodeParser>,
     #[allow(dead_code)]
     batch_segment_threshold: usize,
+    /// Largest indexed file; honors `indexing.maxFileSizeBytes` (default
+    /// 1 MiB, the TS constant).
+    max_file_size_bytes: u64,
 }
 
 impl FileWatcher {
@@ -97,6 +100,7 @@ impl FileWatcher {
         vector_store: Option<Arc<dyn VectorStore>>,
         ignore_matcher: ignore::gitignore::Gitignore,
         batch_segment_threshold: Option<usize>,
+        max_file_size_bytes: Option<u64>,
     ) -> Self {
         let workspace_canonical = workspace_path
             .canonicalize()
@@ -110,6 +114,7 @@ impl FileWatcher {
             ignore_matcher,
             code_parser: Arc::new(crate::processors::parser::LineCodeParser::new()),
             batch_segment_threshold: batch_segment_threshold.unwrap_or(BATCH_SEGMENT_THRESHOLD),
+            max_file_size_bytes: max_file_size_bytes.unwrap_or(MAX_FILE_SIZE_BYTES),
         }
     }
 
@@ -299,7 +304,7 @@ impl FileWatcher {
 
         let result: anyhow::Result<FileProcessingResult> = async {
             let metadata = std::fs::metadata(file_path)?;
-            if metadata.len() > MAX_FILE_SIZE_BYTES {
+            if metadata.len() > self.max_file_size_bytes {
                 return Ok(skip("File too large", None));
             }
 
@@ -538,6 +543,7 @@ mod tests {
             Some(store.clone()),
             ignore::gitignore::Gitignore::empty(),
             None,
+            None,
         );
         Fixture {
             watcher,
@@ -643,6 +649,7 @@ mod tests {
             Some(store.clone()),
             ignore::gitignore::Gitignore::empty(),
             None,
+            None,
         );
 
         let result = watcher.process_file(&file).await;
@@ -739,6 +746,7 @@ mod tests {
             Some(Arc::new(MockEmbedder)),
             Some(store),
             builder.build().unwrap(),
+            None,
             None,
         );
 

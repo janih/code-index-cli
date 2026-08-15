@@ -110,6 +110,7 @@ pub struct DirectoryScanner {
     cache_manager: Arc<dyn CacheManager>,
     ignore_matcher: Gitignore,
     batch_segment_threshold: usize,
+    max_file_size_bytes: u64,
 }
 
 impl DirectoryScanner {
@@ -120,6 +121,7 @@ impl DirectoryScanner {
         cache_manager: Arc<dyn CacheManager>,
         ignore_matcher: Gitignore,
         batch_segment_threshold: Option<usize>,
+        max_file_size_bytes: Option<u64>,
     ) -> Self {
         Self {
             embedder,
@@ -128,6 +130,7 @@ impl DirectoryScanner {
             cache_manager,
             ignore_matcher,
             batch_segment_threshold: batch_segment_threshold.unwrap_or(BATCH_SEGMENT_THRESHOLD),
+            max_file_size_bytes: max_file_size_bytes.unwrap_or(MAX_FILE_SIZE_BYTES),
         }
     }
 
@@ -151,6 +154,7 @@ impl DirectoryScanner {
         let cancelled = signal.clone();
         let cache = Arc::clone(&self.cache_manager);
         let parser = Arc::clone(&self.code_parser);
+        let max_file_size = self.max_file_size_bytes;
 
         let outcomes = stream::iter(supported_paths)
             .map(move |path| {
@@ -161,7 +165,7 @@ impl DirectoryScanner {
                     if token.as_ref().is_some_and(|t| t.is_cancelled()) {
                         return None;
                     }
-                    Some(Self::scan_one_file(path, cache, parser).await)
+                    Some(Self::scan_one_file(path, cache, parser, max_file_size).await)
                 }
             })
             .buffer_unordered(PARSING_CONCURRENCY);
@@ -386,12 +390,13 @@ impl DirectoryScanner {
         path: PathBuf,
         cache_manager: Arc<dyn CacheManager>,
         code_parser: Arc<dyn CodeParser>,
+        max_file_size: u64,
     ) -> FileOutcome {
         let file_path = path.to_string_lossy().into_owned();
         let block_file_path = file_path.clone();
         let result: anyhow::Result<FileOutcome> = async move {
             let metadata = std::fs::metadata(&path)?;
-            if metadata.len() > MAX_FILE_SIZE_BYTES {
+            if metadata.len() > max_file_size {
                 return Ok(FileOutcome::Skipped);
             }
 
@@ -706,6 +711,7 @@ mod tests {
             cache.clone(),
             Gitignore::empty(),
             None,
+            None,
         );
         Fixture { scanner, store }
     }
@@ -827,6 +833,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn skips_files_above_configured_max_size() {
+        let dir = temp_workspace("custom-max");
+        std::fs::write(dir.join("big.ts"), "x".repeat(300)).unwrap();
+        // ~80 bytes: above MIN_BLOCK_CHARS so it still indexes
+        std::fs::write(
+            dir.join("small.ts"),
+            format!("fn a() {{ {} }}", "y".repeat(60)),
+        )
+        .unwrap();
+
+        let store = Arc::new(MockVectorStore::new());
+        let scanner = DirectoryScanner::new(
+            Arc::new(MockEmbedder { dimension: 8 }),
+            store,
+            Arc::new(crate::processors::parser::LineCodeParser::new()),
+            Arc::new(MockCache::new()),
+            Gitignore::empty(),
+            None,
+            Some(200), // custom indexing.maxFileSizeBytes
+        );
+
+        let outcome = scanner
+            .scan_directory(&dir, ScanCallbacks::default(), None)
+            .await
+            .unwrap();
+        assert_eq!(outcome.stats.skipped, 1);
+        assert_eq!(outcome.stats.processed, 1);
+    }
+
+    #[tokio::test]
     async fn skips_oversized_files() {
         let dir = temp_workspace("size");
         let content = "x".repeat((MAX_FILE_SIZE_BYTES + 1) as usize);
@@ -903,6 +939,7 @@ mod tests {
             Arc::new(crate::processors::parser::LineCodeParser::new()),
             Arc::new(MockCache::new()),
             Gitignore::empty(),
+            None,
             None,
         );
 
