@@ -1,7 +1,6 @@
 //! Google Gemini embedder (`:batchEmbedContents`, `x-goog-api-key`).
 //!
-//! Port of `src/embedders/gemini.ts`. Processes texts sequentially — same as
-//! the TS version (one network round-trip per text).
+//! Processes texts sequentially (one network round-trip per text).
 
 use async_trait::async_trait;
 
@@ -33,8 +32,7 @@ impl GeminiEmbedder {
         }
     }
 
-    /// Single-text batchEmbedContents call (TS calls the batch endpoint with
-    /// one request entry per text, sequentially).
+    /// Single-text batchEmbedContents call (one request entry per text).
     async fn embed_one(&self, model: &str, text: &str) -> anyhow::Result<Vec<f32>> {
         let url = format!("{}/models/{}:batchEmbedContents", self.base_url, model);
         let response = self
@@ -91,7 +89,7 @@ impl Embedder for GeminiEmbedder {
 
         let mut all_embeddings = Vec::with_capacity(texts.len());
         for text in texts {
-            // Gemini processes one text at a time (TS loop)
+            // Gemini processes one text at a time
             let processed = match query_prefix {
                 Some(prefix) if !text.starts_with(prefix) => format!("{prefix}{text}"),
                 _ => text.clone(),
@@ -102,7 +100,7 @@ impl Embedder for GeminiEmbedder {
 
         Ok(EmbeddingResponse {
             embeddings: all_embeddings,
-            // TS reports zeroed usage for Gemini
+            // Usage is reported zeroed for Gemini
             usage: Some(EmbeddingUsage {
                 prompt_tokens: 0,
                 total_tokens: 0,

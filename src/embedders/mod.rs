@@ -1,8 +1,8 @@
 //! Embedding provider implementations.
 //!
-//! Port of `src/embedders/*`. All providers are plain HTTPS APIs called with
-//! `reqwest`; provider-specific auth/payload shaping lives in each module.
-//! Bedrock is deferred (needs AWS SigV4) — see the AGENTS.md deviations list.
+//! All providers are plain HTTPS APIs called with `reqwest`; provider-specific
+//! auth/payload shaping lives in each module. Bedrock is deferred (needs AWS
+//! SigV4) — see AGENTS.md.
 
 pub mod gemini;
 pub mod ollama;

@@ -1,6 +1,5 @@
 //! Typed accessor over the resolved configuration.
 //!
-//! Port of `src/config/config-manager.ts`.
 
 use crate::shared::embedding_models::{get_model_score_threshold, EmbedderProvider};
 

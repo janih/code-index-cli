@@ -1,6 +1,5 @@
 //! Dependency wiring: builds embedders, vector store, scanner, orchestrator.
 //!
-//! Port of `src/core/service-factory.ts`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -47,9 +46,7 @@ impl ServiceFactory {
     }
 
     /// Creates an embedder instance based on the current configuration.
-    ///
-    /// Providers are ported incrementally (Phase 1: openai; Phase 2: the
-    /// rest). Unported providers fail loudly here rather than silently
+    /// Unsupported providers fail loudly here rather than silently
     /// misbehaving.
     pub fn create_embedder(&self) -> anyhow::Result<Arc<dyn Embedder>> {
         let config = &self.config_manager;
@@ -123,7 +120,7 @@ impl ServiceFactory {
             }
             EmbedderProvider::Bedrock => {
                 anyhow::bail!(
-                    "Bedrock is deferred pending AWS SigV4 signing (see AGENTS.md deviations)"
+                    "Bedrock is not implemented (needs AWS SigV4 signing) — see AGENTS.md"
                 )
             }
         }
@@ -185,7 +182,7 @@ impl ServiceFactory {
     }
 
     /// Builds a gitignore matcher from the workspace `.gitignore` and the
-    /// configured exclude patterns (TS `buildIgnoreInstance`).
+    /// configured exclude patterns.
     pub fn build_ignore_matcher(&self) -> anyhow::Result<ignore::gitignore::Gitignore> {
         let mut builder = GitignoreBuilder::new(&self.workspace_path);
 
@@ -239,7 +236,7 @@ impl ServiceFactory {
 
 #[cfg(test)]
 mod tests {
-    //! Mirrors the provider/error cases of TS service-factory.test.ts.
+    //! Provider/error cases for the factory.
 
     use super::*;
     use crate::config::manager::ConfigManager;
@@ -337,7 +334,7 @@ mod tests {
             "embedder": { "provider": "bedrock" }
         })));
         let err = f.create_embedder().err().expect("expected error");
-        assert!(err.to_string().contains("deferred"));
+        assert!(err.to_string().contains("not implemented"));
     }
 
     #[test]

@@ -1,13 +1,12 @@
 //! Configuration schema and defaults.
 //!
-//! Port of `src/config/config-schema.ts` — serde replaces zod; `Default`
-//! impls replace the `.default()` annotations and `DEFAULT_CONFIG`.
+//! serde types + `Default` impls provide the fallbacks.
 
 use serde::{Deserialize, Serialize};
 
 use crate::shared::embedding_models::EmbedderProvider;
 
-/// Root configuration, matching the TS `.code-index.json` structure.
+/// Root configuration (`.code-index.json` structure).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CliConfig {
@@ -110,8 +109,7 @@ impl Default for SearchConfig {
 #[serde(default, rename_all = "camelCase")]
 pub struct IndexingConfig {
     pub batch_size: u32,
-    /// Largest indexed file (scanner and watcher honor this; TS parses and
-    /// validates it but always uses the built-in 1 MiB constant).
+    /// Largest indexed file (default 1 MiB).
     pub max_file_size_bytes: u64,
     pub exclude_patterns: Vec<String>,
     /// Accepted for config compatibility but NOT wired into scanning in

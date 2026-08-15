@@ -1,7 +1,7 @@
 //! Directory scanner: walks files, parses code blocks, embeds and upserts.
 //!
-//! Port of `src/processors/scanner.ts`. p-limit/async-mutex map to
-//! `buffer_unordered` (parse concurrency), a `JoinSet` (pending batches) and
+//! Concurrency: `buffer_unordered` (parse concurrency), a `JoinSet`
+//! (pending batches) and
 //! a `Semaphore` (batch concurrency). gitignore matching comes from the
 //! `ignore` crate via a matcher provided by the service factory.
 
@@ -62,7 +62,7 @@ pub struct ScanCallbacks {
 }
 
 /// Deterministic Qdrant point id for a code block: uuid-v5 over the segment
-/// hash (exactly what the TS scanner computes).
+/// hash.
 pub fn point_id_for_segment(segment_hash: &str) -> Uuid {
     let namespace = Uuid::parse_str(QDRANT_CODE_BLOCK_NAMESPACE)
         .expect("namespace constant must be a valid UUID");
@@ -196,17 +196,15 @@ impl DirectoryScanner {
                         }
 
                         // Delete stale points for this file BEFORE queueing
-                        // its new blocks. The TS code deleted after upserting
-                        // (wiping the fresh points); delete-first keeps the
-                        // index consistent — see AGENTS.md deviations.
+                        // its new blocks (delete-after-upsert would wipe the
+                        // fresh points).
                         //
                         // Skipped when the file has no cached hash: a
                         // never-indexed file has no stale points, and the
                         // unconditional delete cost one HTTP round-trip per
-                        // file on every initial scan. Cache and collection
-                        // are created/cleared together, so a missing hash
-                        // implies missing points — see the AGENTS.md
-                        // deviations caveat about lost cache files.
+                        // file on every initial scan. Caveat: a lost cache
+                        // file beside a live collection can leave stale
+                        // points — `clear && index` recovers (AGENTS.md).
                         if self.cache_manager.get_hash(&file_path).is_some() {
                             if let Err(err) = self
                                 .vector_store
@@ -293,8 +291,7 @@ impl DirectoryScanner {
     }
 
     /// Joins one pending batch task, folding its result into the totals.
-    /// Batch errors are logged and reported via on_error (matched against the
-    /// TS behavior where each processBatch error surfaces via onError).
+    /// Batch errors are logged and reported via on_error.
     async fn await_one_batch(
         pending: &mut JoinSet<anyhow::Result<usize>>,
         total: usize,
@@ -435,7 +432,7 @@ impl DirectoryScanner {
 
     /// Lists all files in a directory recursively, skipping IGNORED_DIRECTORIES
     /// at walk time and capped at MAX_LIST_FILES_LIMIT. Symlinks are not
-    /// followed (same as the TS Dirent-based walk).
+    /// followed.
     fn list_supported_files(&self, directory: &Path) -> Vec<PathBuf> {
         let mut results = Vec::new();
         let mut stack = vec![directory.to_path_buf()];
@@ -498,7 +495,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     // ---------------------------------------------------------------
-    // Mocks (same seams the TS scanner tests mock)
+    // Mocks
     // ---------------------------------------------------------------
 
     struct MockEmbedder {

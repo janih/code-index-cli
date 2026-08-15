@@ -1,12 +1,9 @@
 //! Line-based code parser.
 //!
-//! Port of `src/processors/parser.ts`. Tree-sitter is not used (same as the
-//! TS version, which ships `web-tree-sitter` but never calls it).
+//! Tree-sitter chunking is a possible future addition.
 //!
-//! Deviation note: block sizes are measured in bytes (`str::len`), where the
-//! TS version counts UTF-16 code units. Equal for ASCII; chunk boundaries may
-//! differ slightly for non-ASCII content. Hashes and line numbers are
-//! unaffected by this choice in deterministic ways only via content.
+//! Block sizes are measured in bytes; chunk boundaries for non-ASCII content
+//! are deterministic on that basis.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -132,7 +129,7 @@ impl LineCodeParser {
     }
 
     fn is_markdown_header(line: &str) -> bool {
-        // Matches the TS regex /^#{1,6}\s/
+        // 1-6 '#' followed by whitespace
         let hashes = line.bytes().take_while(|b| *b == b'#').count();
         if hashes == 0 || hashes > 6 {
             return false;
@@ -357,7 +354,7 @@ mod tests {
     }
 
     /// Second block must start exactly at the line after the first block —
-    /// regression test for the ported TS off-by-one (start was one too high).
+    /// regression test for a start-line off-by-one (start was one too high).
     #[tokio::test]
     async fn block_start_lines_are_exact_after_split() {
         // 10-char lines (+1 newline) => line_size 11; MAX=1000 triggers the

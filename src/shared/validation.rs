@@ -1,6 +1,4 @@
 //! Validation and error helpers — API key redaction and HTTP errors.
-//!
-//! Port of `src/shared/validation-helpers.ts`.
 
 use std::fmt;
 use std::sync::LazyLock;

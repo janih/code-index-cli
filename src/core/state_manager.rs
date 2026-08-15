@@ -1,6 +1,5 @@
 //! Indexing state machine with progress reporting.
 //!
-//! Port of `src/core/state-manager.ts`. The Node EventEmitter becomes a
 //! Mutex-protected status plus subscriber callbacks (invoked outside the
 //! lock so subscribers can call back in).
 
@@ -66,7 +65,7 @@ impl StateManager {
             .push(subscriber);
     }
 
-    /// Sets the system state (see `setSystemState` in the TS version).
+    /// Sets the system state.
     pub fn set_system_state(&self, new_state: IndexingState, message: Option<&str>) {
         let snapshot = {
             let mut status = self.lock();
@@ -243,7 +242,7 @@ mod tests {
         let counter = Arc::clone(&count);
         m.on_progress_update(Box::new(move |_| *counter.lock().unwrap() += 1));
         // Both calls are no-ops: state is already Standby and no message was
-        // given (the TS "stateChanged" gate never fires).
+        // given.
         m.set_system_state(IndexingState::Standby, None);
         m.set_system_state(IndexingState::Standby, None);
         assert_eq!(*count.lock().unwrap(), 0);

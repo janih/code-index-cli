@@ -1,6 +1,6 @@
 //! Indexing workflow orchestrator.
 //!
-//! Port of `src/core/orchestrator.ts`. The file watcher is deliberately not
+//! The file watcher is deliberately not
 //! owned here (watch mode composes it in Phase 3); `start_indexing` performs
 //! the scan and returns the outcome.
 
@@ -168,7 +168,7 @@ impl Orchestrator {
 
         let result = self.run_indexing_flow(&token).await;
 
-        // Error path (TS catch): clean up on failure unless aborted
+        // Error path: clean up on failure unless aborted
         if let Err(err) = &result {
             if token.is_cancelled() {
                 log::info("Indexing aborted by user.");
@@ -177,7 +177,7 @@ impl Orchestrator {
                     .set_system_state(IndexingState::Standby, Some("Indexing stopped."));
             } else {
                 log::error(&format!("Error during indexing: {err}"));
-                // TS failure path: if initialize() succeeded, wipe partial data
+                // If initialize() succeeded, wipe partial data
                 if self.vector_store.collection_exists().await.unwrap_or(false) {
                     if let Err(cleanup_err) = self.vector_store.clear_collection().await {
                         log::error(&format!("Failed to clean up after error: {cleanup_err}"));

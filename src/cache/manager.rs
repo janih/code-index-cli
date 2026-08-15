@@ -1,7 +1,6 @@
 //! File-hash cache with debounced disk persistence.
 //!
-//! Port of `src/cache/cache-manager.ts`. The cache lives at
-//! `~/.cache/code-index/cache-<sha256(workspacePath)>.json`.
+//! The cache lives at `~/.cache/code-index/cache-<sha256(workspacePath)>.json`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -113,8 +112,8 @@ impl HashCacheManager {
     }
 
     /// Schedules a debounced save. Outside a tokio runtime (e.g. pure sync
-    /// tests) saves are deferred until `flush` is called instead — matching
-    /// the safety margin the TS debounce timer loses on process exit too.
+    /// tests) saves are deferred until `flush` is called instead — callers
+    /// must flush on exit or the final debounce window is lost.
     fn schedule_save(&self) {
         self.generation.fetch_add(1, Ordering::SeqCst);
         let Ok(handle) = tokio::runtime::Handle::try_current() else {

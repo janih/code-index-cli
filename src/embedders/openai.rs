@@ -1,7 +1,7 @@
 //! OpenAI embedder (`text-embedding-3-*`).
 //!
-//! Port of `src/embedders/openai.ts`. Calls the REST API directly with
-//! `reqwest` — the surface is two endpoints (`POST /embeddings`,
+//! Calls the REST API directly with `reqwest` — the surface is two
+//! endpoints (`POST /embeddings`,
 //! `GET /models/{id}`), so pulling in an OpenAI SDK crate is not worth it.
 
 use async_trait::async_trait;
@@ -56,7 +56,7 @@ pub(crate) fn apply_query_prefix(
 }
 
 /// Greedy batching plan: fills each batch up to MAX_BATCH_TOKENS and drops
-/// items above MAX_ITEM_TOKENS (with a warning, like the TS version).
+/// items above MAX_ITEM_TOKENS (with a warning).
 pub(crate) fn plan_batches(texts: &[String]) -> Vec<Vec<String>> {
     let mut remaining: Vec<String> = texts.to_vec();
     let mut batches = Vec::new();
@@ -100,7 +100,7 @@ pub(crate) fn plan_batches(texts: &[String]) -> Vec<Vec<String>> {
 }
 
 /// Retries an embeddings call on 429 and 5xx with a linear backoff,
-/// up to MAX_BATCH_RETRIES attempts (matches the TS `_callWithRetry`).
+/// up to MAX_BATCH_RETRIES attempts.
 pub(crate) async fn call_embeddings_with_retry<F, Fut>(
     mut call: F,
 ) -> anyhow::Result<EmbeddingBatchResponse>

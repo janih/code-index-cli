@@ -1,7 +1,6 @@
 //! CLI command handlers.
 //!
-//! Port of `src/commands/*` from the TypeScript version. Each function
-//! corresponds to one commander action; `cli::run` drives them on a tokio
+//! One async handler per command; `cli::run` drives them on a tokio
 //! runtime.
 
 use std::path::PathBuf;
@@ -15,7 +14,7 @@ use crate::core::state_manager::IndexingState;
 use crate::core::{SearchService, ServiceFactory, StateManager};
 use crate::traits::{CacheManager, VectorStoreSearchResult};
 
-/// `code-index init`: writes a template `.code-index.json` (TS `init`).
+/// `code-index init`: writes a template `.code-index.json`
 pub async fn init(workspace: PathBuf, force: bool) -> anyhow::Result<()> {
     let config_path = crate::config::loader::project_config_path(&workspace);
 
@@ -65,7 +64,7 @@ pub async fn init(workspace: PathBuf, force: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `code-index index`: scan workspace and index code files (TS `index-cmd`).
+/// `code-index index`: scan workspace and index code files
 pub async fn index(
     workspace: PathBuf,
     config_path: Option<PathBuf>,
@@ -74,8 +73,8 @@ pub async fn index(
     batch_size: Option<u32>,
     dry_run: bool,
 ) -> anyhow::Result<()> {
-    // TS accepts --dry-run but never wires it into the pipeline; mirror with a
-    // warning instead of silently misindexing.
+    // --dry-run is accepted for flag compatibility but not implemented; warn
+    // instead of silently misindexing.
     if dry_run {
         crate::log::warn("--dry-run is accepted for compatibility but not implemented yet");
     }
@@ -133,7 +132,7 @@ pub async fn index(
     println!("✅ Embedder configuration valid");
     println!();
 
-    // Progress reporting like the TS progressUpdate handler
+    // Progress reporting
     state_manager.on_progress_update(Box::new(move |status| {
         if status.system_status == IndexingState::Indexing && status.total_items > 0 {
             let percent = status.processed_items * 100 / status.total_items.max(1);
@@ -158,7 +157,7 @@ pub async fn index(
     Ok(())
 }
 
-/// `code-index search`: semantic search over the index (TS `search`).
+/// `code-index search`: semantic search over the index
 #[allow(clippy::too_many_arguments)]
 pub async fn search(
     workspace: PathBuf,
@@ -222,7 +221,7 @@ pub async fn search(
     Ok(())
 }
 
-/// Text output identical to the TS `displayResults` helper.
+/// Text output for search results.
 fn display_results(query: &str, results: &[VectorStoreSearchResult], limit: Option<u32>) {
     let display = results
         .iter()
@@ -267,7 +266,7 @@ fn display_results(query: &str, results: &[VectorStoreSearchResult], limit: Opti
     }
 }
 
-/// `code-index watch`: index workspace, then watch for changes (TS `watch`).
+/// `code-index watch`: index workspace, then watch for changes
 pub async fn watch(
     workspace: PathBuf,
     config_path: Option<PathBuf>,
@@ -329,7 +328,7 @@ pub async fn watch(
     println!("✅ Embedder configuration valid");
     println!();
 
-    // Progress reporting (TS watch.ts handler)
+    // Progress reporting
     state_manager.on_progress_update(Box::new(|status| match status.system_status {
         IndexingState::Indexing if status.total_items > 0 => {
             let percent = status.processed_items * 100 / status.total_items.max(1);
@@ -366,7 +365,7 @@ pub async fn watch(
     ));
     let (_keepalive, mut events) = file_watcher.start_notify_stream()?;
 
-    // Debounce loop: 500ms quiet window, reset per event (TS parity)
+    // Debounce loop: 500ms quiet window, reset per event
     let debounce = std::time::Duration::from_millis(500);
     let mut pending: HashMap<PathBuf, crate::processors::watcher::WatchEventType> = HashMap::new();
     loop {
@@ -438,7 +437,7 @@ pub async fn watch(
     }
 }
 
-/// `code-index status`: show configuration and index status (TS `status`).
+/// `code-index status`: show configuration and index status
 pub async fn status(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow::Result<()> {
     let config_manager = ConfigManager::new(load_config(&workspace, config_path.as_deref(), None)?);
 
@@ -498,7 +497,7 @@ pub async fn status(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow:
     Ok(())
 }
 
-/// `code-index clear`: remove all index data (TS `clear`).
+/// `code-index clear`: remove all index data
 pub async fn clear(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow::Result<()> {
     println!("🗑️  Clearing index data...");
 

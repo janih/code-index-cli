@@ -1,7 +1,7 @@
 //! OpenAI-compatible embedder (custom base URL, e.g. llama-server, vLLM,
 //! LiteLLM, LM Studio).
 //!
-//! Port of `src/embedders/openai-compatible.ts`. Key differences from the
+//! Key differences from the
 //! bare OpenAI provider: no internal batching (one request per call),
 //! query prefix applied without the per-item token-limit check, and
 //! validation probes a minimal embedding request instead of GET /models.
@@ -37,7 +37,7 @@ impl OpenAiCompatibleEmbedder {
         }
     }
 
-    /// Sends the whole input in a single request (no batching in TS either).
+    /// Sends the whole input in a single request (no batching).
     async fn embeddings_call(
         &self,
         model: &str,
@@ -85,7 +85,7 @@ impl Embedder for OpenAiCompatibleEmbedder {
     ) -> anyhow::Result<EmbeddingResponse> {
         let model_to_use = model.unwrap_or(&self.default_model_id).to_string();
 
-        // TS applies the prefix without the MAX_ITEM_TOKENS guard here
+        // The prefix is applied without the MAX_ITEM_TOKENS guard here
         let processed_texts = if is_query {
             match get_model_query_prefix(EmbedderProvider::OpenAiCompatible, &model_to_use) {
                 Some(prefix) => texts

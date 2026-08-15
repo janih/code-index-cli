@@ -1,7 +1,7 @@
 //! Business logic: orchestrator, search service, service factory, state.
 //!
-//! Port of `src/core/*`. The Node EventEmitter becomes Mutex-protected
-//! status with subscriber callbacks (see `state_manager`).
+//! State is a Mutex-protected status plus subscriber callbacks (see
+//! `state_manager`).
 
 pub mod orchestrator;
 pub mod search_service;

@@ -1,6 +1,6 @@
 /target
 
-# Leftovers from the TS reference checkout and local tooling
+# Local tooling leftovers
 node_modules/
 dist/
 .idea/
