@@ -122,7 +122,9 @@ impl ServiceFactory {
                 )))
             }
             EmbedderProvider::Bedrock => {
-                anyhow::bail!("Bedrock is deferred pending AWS SigV4 signing (see REWRITE-PLAN.md)")
+                anyhow::bail!(
+                    "Bedrock is deferred pending AWS SigV4 signing (see AGENTS.md deviations)"
+                )
             }
         }
     }
