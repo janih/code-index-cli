@@ -231,9 +231,9 @@ impl VectorStore for QdrantVectorStore {
                     let existing_vector_size = extract_vector_size(&info);
                     if existing_vector_size != self.vector_size {
                         log::info(&format!(
-							"Vector size mismatch (existing: {}, required: {}). Recreating collection...",
-							existing_vector_size, self.vector_size
-						));
+                            "Vector size mismatch (existing: {}, required: {}). Recreating collection...",
+                            existing_vector_size, self.vector_size
+                        ));
                         self.delete_collection().await?;
                         self.create_collection().await?;
                         created = true;

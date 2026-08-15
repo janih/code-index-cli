@@ -145,10 +145,8 @@ mod tests {
             !manager_with(r#"{"embedder": {"provider": "openai-compatible"}}"#)
                 .is_feature_configured()
         );
-        assert!(manager_with(
-			r#"{"embedder": {"provider": "openai-compatible", "compatibleBaseUrl": "http://x", "compatibleApiKey": "k"}}"#
-		)
-		.is_feature_configured());
+        assert!(manager_with(r#"{"embedder": {"provider": "openai-compatible", "compatibleBaseUrl": "http://x", "compatibleApiKey": "k"}}"#)
+            .is_feature_configured());
         assert!(manager_with(r#"{"embedder": {"provider": "bedrock"}}"#).is_feature_configured());
     }
 
@@ -178,11 +176,11 @@ mod tests {
     fn typed_getters() {
         let manager = manager_with(
             r#"{
-				"embedder": {"provider": "openai", "modelId": "text-embedding-3-large", "apiKey": "sk-x", "baseUrl": "http://proxy"},
-				"qdrant": {"url": "http://qdrant:6333", "apiKey": "qk"},
-				"search": {"minScore": 0.55, "maxResults": 75},
-				"indexing": {"batchSize": 32, "maxFileSizeBytes": 2048, "excludePatterns": ["dist"], "includeExtensions": [".rs"]}
-			}"#,
+                "embedder": {"provider": "openai", "modelId": "text-embedding-3-large", "apiKey": "sk-x", "baseUrl": "http://proxy"},
+                "qdrant": {"url": "http://qdrant:6333", "apiKey": "qk"},
+                "search": {"minScore": 0.55, "maxResults": 75},
+                "indexing": {"batchSize": 32, "maxFileSizeBytes": 2048, "excludePatterns": ["dist"], "includeExtensions": [".rs"]}
+            }"#,
         );
         assert_eq!(manager.embedder_provider(), EmbedderProvider::OpenAi);
         assert_eq!(manager.model_id(), Some("text-embedding-3-large"));
