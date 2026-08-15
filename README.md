@@ -1,12 +1,7 @@
-# code-index-cli (Rust)
+# code-index-cli
 
 Standalone CLI that indexes a codebase into a local **Qdrant** vector store and
-answers semantic search queries, as a single small binary (≈4 MB, cold start in
-milliseconds — no Node.js or any runtime required).
-
-It succeeds an earlier Node.js tool (preserved on the `first-version-build`
-branch); this Rust codebase is the canonical implementation and carries the
-testing and benchmarking. Known limitations are listed in `AGENTS.md`.
+answers semantic search queries, as a single small binary.
 
 ## Requirements
 
