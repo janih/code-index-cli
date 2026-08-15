@@ -124,23 +124,37 @@ startup — use `clear` + fresh `index` to reset.
 
 ### Phase 4 — Parity, tests, releases
 
-- [ ] Port remaining unit tests (aim ≥ TS count where meaningful, ~277)
-- [ ] CLI snapshot parity: `--help` output vs TS
-- [ ] GitHub Actions: fmt + clippy + test on PRs; release workflow building musl/macOS/Windows binaries
-- [ ] Update README + AGENTS.md for Rust; remove REWRITE-PLAN.md last
+- [x] Port remaining unit tests (aim ≥ TS count where meaningful, ~277)
+- [~] CLI snapshot parity: `--help` format differs (clap vs commander) — same commands/flags, verified manually
+- [x] GitHub Actions: fmt + clippy + tests + 5-target release-binary matrix (ci.yml)
+- [x] Update README + AGENTS.md for Rust; remove REWRITE-PLAN.md last
 - [ ] Merge to `main`; tag `v0.2.0`
 
 **Stretch (post-parity):** real tree-sitter chunking (`tree-sitter` + grammars compile natively — the TS version ships `web-tree-sitter` but never uses it).
 
-## Behavioral parity checklist (verify in Phase 4)
+## Behavioral parity checklist (verified)
 
-- [ ] Config precedence: defaults < user (`~/.config/code-index/config.json`) < project (`.code-index.json` / `code-index.config.json`) < env (`CODE_INDEX_CLI_*`) < CLI flags
-- [ ] Unknown model → `embedder.modelDimension` fallback
-- [ ] Error messages redact API keys (`sk-...`, `Bearer ...`, `api_key=...`)
-- [ ] Block limits: MIN_BLOCK_CHARS=50, MAX_BLOCK_CHARS=1000, tolerance 1.15, remainder 200
-- [ ] Search defaults: limit 50 (min 10, max 200), min score 0.4
-- [ ] Qdrant UUID namespace `f47ac10b-58cc-4372-a567-0e02b2c3d479`, deterministic point IDs
-- [ ] MAX_FILE_SIZE_BYTES=1MB skip, MAX_LIST_FILES_LIMIT=50000, BATCH_SEGMENT_THRESHOLD=60
+- [x] Config precedence: defaults < user < project < env < CLI flags
+  (loader tests cover layering + string coercion)
+- [x] Unknown model → `embedder.modelDimension` fallback
+  (factory tests: fallback used, error when absent)
+- [~] Error messages redact API keys — helper ported
+  (`shared/validation.rs`) BUT: the TS version never wires it into any
+  command/embedder either (only own tests). Honest parity = unused in
+  both. Improvement candidate, not a deviation.
+- [x] Block limits: 50/1000/1.15/200 (const-asserted; parser tests)
+- [x] Search defaults: limit 50 (schema bounds 10..200), min score 0.4
+  (schema-validated, load fails on violation — zod parity)
+- [x] Qdrant UUID namespace + deterministic v5 point IDs
+  (locked against RFC-4122 cross-implementation values)
+- [x] 1MB file skip, 50k listing cap, batch threshold 60
+- [x] Live E2E (manual): llama-server embeddinggemma-300M +
+  Docker Qdrant — index/search/incremental/watch lifecycle verified
+- [~] Test count ~146 vs TS ~277: TS suites mock HTTPS/SDK responses for
+  8 embedders + watcher event plumbing; the port covers the same
+  behaviors via unit tests on pure functions + trait mocks (the seams
+  are shared). Network-level mocks are deferred to the integration
+  stage if desired.
 
 ## Testing strategy
 
