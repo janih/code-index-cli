@@ -7,6 +7,7 @@ use crate::shared::embedding_models::{get_model_score_threshold, EmbedderProvide
 use super::schema::CliConfig;
 
 /// Manages configuration state and provides typed access to values.
+#[derive(Clone)]
 pub struct ConfigManager {
     config: CliConfig,
 }
