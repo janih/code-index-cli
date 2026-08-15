@@ -33,3 +33,7 @@
 {"id":"q33","query":"how are search results filtered client side after the vector query","category":"search","split":"dev","relevant":{"src/core/search_service.rs":2,"src/vector_store/qdrant.rs":1}}
 {"id":"q34","query":"how is indexing progress reported to the user","category":"usage","relevant":{"src/core/state_manager.rs":2,"src/commands/mod.rs":1}}
 {"id":"q35","query":"where is the query prefix for nomic embed code applied","category":"search","relevant":{"src/embedders/openai.rs":2,"src/embedders/ollama.rs":1}}
+{"id":"q36","query":"retry and backoff behavior for embedding requests","category":"search","directory":"src/embedders","relevant":{"src/embedders/openai.rs":2,"src/embedders/openai_compatible.rs":1}}
+{"id":"q37","query":"schema validation rules for the config file","category":"config","directory":"src/config","relevant":{"src/config/schema.rs":2,"src/config/loader.rs":1}}
+{"id":"q38","query":"how files are walked and filtered during a scan","category":"behavior","directory":"src/processors","relevant":{"src/processors/scanner.rs":2,"src/processors/parser.rs":1}}
+{"id":"q39","query":"state transitions while indexing runs","category":"usage","directory":"src/core","relevant":{"src/core/state_manager.rs":2,"src/core/orchestrator.rs":1}}

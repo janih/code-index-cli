@@ -2,9 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Per-model run output, persisted to `bench/results/<slug>.json`.
+/// Per-model run output, persisted to `bench/results/<corpus>/<slug>.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelResults {
+    #[serde(default)]
+    pub corpus: String,
     pub name: String,
     pub slug: String,
     pub gguf: String,

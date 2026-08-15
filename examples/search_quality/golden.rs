@@ -22,6 +22,11 @@ pub struct GoldenQuery {
     /// headline metrics report the eval split only.
     #[serde(default = "default_split")]
     pub split: String,
+    /// When set, the query is searched with this directory prefix (the
+    /// `--directory` slice): server-side filter + client post-filter,
+    /// exactly like the product.
+    #[serde(default)]
+    pub directory: Option<String>,
 }
 
 fn default_split() -> String {
@@ -41,40 +46,34 @@ impl GoldenQuery {
 }
 
 impl GoldenSet {
-    pub fn load(bench_dir: &Path) -> anyhow::Result<Self> {
-        let golden_dir = bench_dir.join("golden");
+    /// Loads the golden set for one corpus: `bench/golden/<corpus>.jsonl`.
+    pub fn load(bench_dir: &Path, corpus_slug: &str) -> anyhow::Result<Self> {
+        let path = bench_dir
+            .join("golden")
+            .join(format!("{corpus_slug}.jsonl"));
         let mut queries = Vec::new();
-        let mut entries: Vec<_> = std::fs::read_dir(&golden_dir)
-            .map_err(|err| anyhow::anyhow!("cannot read {}: {err}", golden_dir.display()))?
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|e| e == "jsonl"))
-            .collect();
-        entries.sort();
-
-        for path in entries {
-            let raw = std::fs::read_to_string(&path)?;
-            for (lineno, line) in raw.lines().enumerate() {
-                let line = line.trim();
-                if line.is_empty() {
-                    continue;
-                }
-                let q: GoldenQuery = serde_json::from_str(line).map_err(|err| {
-                    anyhow::anyhow!(
-                        "{}:{}: invalid golden entry: {err}",
-                        path.display(),
-                        lineno + 1
-                    )
-                })?;
-                if q.query.trim().is_empty() || q.relevant.is_empty() {
-                    anyhow::bail!(
-                        "{}:{}: query needs text and >=1 relevant file",
-                        path.display(),
-                        lineno + 1
-                    );
-                }
-                queries.push(q);
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|err| anyhow::anyhow!("cannot read {}: {err}", path.display()))?;
+        for (lineno, line) in raw.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
             }
+            let q: GoldenQuery = serde_json::from_str(line).map_err(|err| {
+                anyhow::anyhow!(
+                    "{}:{}: invalid golden entry: {err}",
+                    path.display(),
+                    lineno + 1
+                )
+            })?;
+            if q.query.trim().is_empty() || q.relevant.is_empty() {
+                anyhow::bail!(
+                    "{}:{}: query needs text and >=1 relevant file",
+                    path.display(),
+                    lineno + 1
+                );
+            }
+            queries.push(q);
         }
 
         let mut seen = std::collections::HashSet::new();
@@ -84,7 +83,7 @@ impl GoldenSet {
             }
         }
         if queries.is_empty() {
-            anyhow::bail!("golden set is empty");
+            anyhow::bail!("golden set {} is empty", path.display());
         }
         Ok(Self { queries })
     }

@@ -1,0 +1,24 @@
+{"id":"t01","query":"how are CLI commands and options defined","category":"usage","relevant":{"src/index.ts":2}}
+{"id":"t02","query":"where is the zod schema for the config file","category":"config","relevant":{"src/config/config-schema.ts":2}}
+{"id":"t03","query":"how are config layers deep merged","category":"config","relevant":{"src/config/config-loader.ts":2}}
+{"id":"t04","query":"what events does the state manager emit on progress","category":"behavior","split":"dev","relevant":{"src/core/state-manager.ts":2}}
+{"id":"t05","query":"where is p-limit used to bound concurrency","category":"concurrency","relevant":{"src/processors/scanner.ts":2}}
+{"id":"t06","query":"how does the file watcher debounce events with chokidar","category":"behavior","relevant":{"src/processors/file-watcher.ts":2}}
+{"id":"t07","query":"how are markdown sections chunked into blocks","category":"behavior","relevant":{"src/processors/parser.ts":2,"src/processors/parser.test.ts":1}}
+{"id":"t08","query":"where is the file hash cache written to disk","category":"cache","split":"dev","relevant":{"src/cache/cache-manager.ts":2}}
+{"id":"t09","query":"how does search apply a directory prefix filter","category":"search","relevant":{"src/core/search-service.ts":2}}
+{"id":"t10","query":"which embedder signs requests for the bedrock runtime","category":"symbol","relevant":{"src/embedders/bedrock.ts":2}}
+{"id":"t11","query":"where are api keys stripped from error messages","category":"symbol","relevant":{"src/shared/validation-helpers.ts":2}}
+{"id":"t12","query":"how are model dimensions and score thresholds defined","category":"config","relevant":{"src/shared/embedding-models.ts":2}}
+{"id":"t13","query":"which client wraps the qdrant rest api","category":"qdrant","relevant":{"src/vector-store/qdrant-client.ts":2}}
+{"id":"t14","query":"how does the orchestrator clean up after a failed index run","category":"behavior","split":"dev","relevant":{"src/core/orchestrator.ts":2}}
+{"id":"t15","query":"where are the embedder and vector store interfaces defined","category":"symbol","relevant":{"src/interfaces/index.ts":2,"src/interfaces/embedder.ts":1,"src/interfaces/vector-store.ts":1}}
+{"id":"t16","query":"how is verbose debug logging gated","category":"usage","relevant":{"src/utils/logger.ts":2}}
+{"id":"t17","query":"what does the init command write to the workspace","category":"usage","relevant":{"src/commands/init.ts":2}}
+{"id":"t18","query":"how does watch mode handle ctrl c shutdown","category":"behavior","relevant":{"src/commands/watch.ts":2,"src/core/orchestrator.ts":1}}
+{"id":"t19","query":"where is the deterministic uuid v5 for points computed","category":"qdrant","split":"dev","relevant":{"src/processors/scanner.ts":2}}
+{"id":"t20","query":"how are embedding batches retried on rate limit errors","category":"behavior","relevant":{"src/embedders/openai.ts":2}}
+{"id":"t21","query":"constants for block sizes and search limits","category":"config","directory":"src/shared","relevant":{"src/shared/constants.ts":2}}
+{"id":"t22","query":"embedder implementations for cloud providers","category":"usage","directory":"src/embedders","relevant":{"src/embedders/openai.ts":2,"src/embedders/gemini.ts":1}}
+{"id":"t23","query":"how does the search command format and display results","category":"search","directory":"src/commands","relevant":{"src/commands/search.ts":2}}
+{"id":"t24","query":"tests for the directory scanner pipeline","category":"usage","directory":"src/processors","relevant":{"src/processors/scanner.test.ts":2}}

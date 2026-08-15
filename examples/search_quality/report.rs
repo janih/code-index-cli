@@ -11,6 +11,7 @@ use crate::types::ModelResults;
 pub type Delta = (f64, f64, f64);
 
 pub fn render(
+    corpus_name: &str,
     metrics: &[ModelMetrics],
     results: &[ModelResults],
     golden: &GoldenSet,
@@ -19,7 +20,7 @@ pub fn render(
     let mut out = String::new();
     out.push_str("# Search-quality benchmark\n\n");
     out.push_str(&format!(
-        "- Corpus: code-index-cli ({} golden queries: {} eval / {} dev-threshold)\n",
+        "- Corpus: **{corpus_name}** ({} golden queries: {} eval / {} dev-threshold)\n",
         golden.queries.len(),
         golden.counts().0,
         golden.counts().1,
@@ -98,6 +99,27 @@ pub fn render(
         out.push('\n');
     }
 
+    out.push_str("\n## --directory-filtered queries\n\n");
+    if metrics.iter().any(|m| m.dir_queries > 0) {
+        out.push_str(&format!(
+            "Searched with a golden directory prefix (server filter + client post-filter, product path). {} queries.\n\n",
+            metrics.first().map(|m| m.dir_queries).unwrap_or(0)
+        ));
+        out.push_str("| Model | R@1 | R@5 | MRR@10 |\n|---|---|---|---|\n");
+        for m in metrics {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                m.name,
+                opt3(m.dir_recall_at_1),
+                opt3(m.dir_recall_at_5),
+                opt3(m.dir_mrr),
+            ));
+        }
+    } else {
+        out.push_str("None in this golden set.\n");
+    }
+    out.push('\n');
+
     out.push_str("## Recall@10 by category\n\n");
     let mut categories: Vec<String> = metrics
         .first()
@@ -162,9 +184,13 @@ fn opt3(v: Option<f64>) -> String {
     v.map(|v| format!("{v:.3}")).unwrap_or_else(|| "—".into())
 }
 
-/// Loads `bench/results/*.json` for the given slugs (all files when empty).
-pub fn load_results(bench_dir: &Path, slugs: &[String]) -> anyhow::Result<Vec<ModelResults>> {
-    let dir = bench_dir.join("results");
+/// Loads `bench/results/<corpus>/*.json` for the given slugs (all files when empty).
+pub fn load_results(
+    bench_dir: &Path,
+    corpus_slug: &str,
+    slugs: &[String],
+) -> anyhow::Result<Vec<ModelResults>> {
+    let dir = bench_dir.join("results").join(corpus_slug);
     let mut out = Vec::new();
     let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)?
         .flatten()

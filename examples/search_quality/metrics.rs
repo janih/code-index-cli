@@ -34,6 +34,11 @@ pub struct ModelMetrics {
     pub eval_f1_at_default: f64,
     pub latency_p50_ms: f64,
     pub latency_p95_ms: f64,
+    /// --directory slice (queries with a golden `directory` field).
+    pub dir_queries: usize,
+    pub dir_recall_at_1: Option<f64>,
+    pub dir_recall_at_5: Option<f64>,
+    pub dir_mrr: Option<f64>,
     pub index_secs: f64,
     pub files_processed: usize,
     pub blocks: usize,
@@ -72,6 +77,9 @@ pub fn compute(results: &ModelResults, golden: &GoldenSet) -> ModelMetrics {
     let mut aps: Vec<(String, f64)> = Vec::new();
     let mut category: Vec<(String, bool)> = Vec::new();
     let mut auc_pairs: Vec<(f64, bool)> = Vec::new();
+    let mut dir_r1: Vec<bool> = Vec::new();
+    let mut dir_r5: Vec<bool> = Vec::new();
+    let mut dir_rr: Vec<f64> = Vec::new();
 
     for q in &results.queries {
         let Some(g) = golden.find(&q.qid) else {
@@ -89,6 +97,16 @@ pub fn compute(results: &ModelResults, golden: &GoldenSet) -> ModelMetrics {
         }
 
         let first_rel = files.iter().position(|(path, _, _)| g.grade(path) > 0);
+        if g.directory.is_some() {
+            dir_r1.push(first_rel.is_some_and(|i| i < 1));
+            dir_r5.push(first_rel.is_some_and(|i| i < 5));
+            dir_rr.push(
+                first_rel
+                    .filter(|i| *i < TOP_K)
+                    .map(|i| 1.0 / (i + 1) as f64)
+                    .unwrap_or(0.0),
+            );
+        }
         recalls1.push(first_rel.is_some_and(|i| i < 1));
         recalls5.push(first_rel.is_some_and(|i| i < 5));
         recalls10.push(first_rel.is_some_and(|i| i < TOP_K));
@@ -211,6 +229,10 @@ pub fn compute(results: &ModelResults, golden: &GoldenSet) -> ModelMetrics {
         eval_f1_at_default,
         latency_p50_ms: percentile(&latencies_sorted, 50.0),
         latency_p95_ms: percentile(&latencies_sorted, 95.0),
+        dir_queries: dir_r1.len(),
+        dir_recall_at_1: (!dir_r1.is_empty()).then(|| mean0(&bools(&dir_r1))),
+        dir_recall_at_5: (!dir_r5.is_empty()).then(|| mean0(&bools(&dir_r5))),
+        dir_mrr: (!dir_rr.is_empty()).then(|| mean0(&dir_rr)),
         index_secs: results.index.index_secs,
         files_processed: results.index.files_processed,
         blocks: results.index.blocks,

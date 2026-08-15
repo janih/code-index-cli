@@ -49,6 +49,14 @@ impl LlamaServer {
             .arg("--port")
             .arg(port.to_string())
             .arg("--embeddings")
+            // Embedding inputs must fit in ONE physical batch; the 512
+            // default rejects ~520-token inputs (e.g. package-lock.json's
+            // long single lines), which silently drops whole batches for
+            // some tokenizers. 4096 covers any single block we index.
+            .arg("--batch-size")
+            .arg("8192")
+            .arg("--ubatch-size")
+            .arg("4096")
             .stdout(Stdio::from(log.try_clone()?))
             .stderr(Stdio::from(log))
             .spawn()
