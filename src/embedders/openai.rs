@@ -148,7 +148,7 @@ impl OpenAiEmbedder {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(300))
                 .build()
-                .unwrap_or_default(),
+                .expect("embedding client with fixed timeout builds"),
             api_key,
             base_url: OPENAI_BASE_URL.to_string(),
             default_model_id: model_id.unwrap_or_else(|| DEFAULT_MODEL.to_string()),

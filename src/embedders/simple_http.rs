@@ -83,7 +83,7 @@ impl SimpleHttpEmbedder {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(300))
                 .build()
-                .unwrap_or_default(),
+                .expect("embedding client with fixed timeout builds"),
             embeddings_url: base_url,
             api_key,
             default_model_id: model_id.unwrap_or_else(|| default_model.to_string()),

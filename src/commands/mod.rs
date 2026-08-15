@@ -331,6 +331,8 @@ pub async fn watch(
                 "\r   Progress: {}/{} {} ({}%)",
                 status.processed_items, status.total_items, status.current_item_unit, percent
             );
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
         }
         IndexingState::Indexed => println!("\n✅ {}", status.message),
         _ => {}
