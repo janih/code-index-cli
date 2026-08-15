@@ -69,6 +69,25 @@ pub fn point_id_for_segment(segment_hash: &str) -> Uuid {
     Uuid::new_v5(&namespace, segment_hash.as_bytes())
 }
 
+/// Builds the indexed point for one code block: deterministic uuid-v5 id
+/// plus the payload schema (filePath/codeChunk/startLine/endLine/
+/// segmentHash/fileHash). Shared by the scanner and the watcher so the two
+/// indexing paths cannot drift apart.
+pub fn block_to_point(block: &crate::traits::CodeBlock, vector: Vec<f32>) -> PointStruct {
+    let mut payload = serde_json::Map::new();
+    payload.insert("filePath".into(), block.file_path.clone().into());
+    payload.insert("codeChunk".into(), block.content.clone().into());
+    payload.insert("startLine".into(), (block.start_line as u64).into());
+    payload.insert("endLine".into(), (block.end_line as u64).into());
+    payload.insert("segmentHash".into(), block.segment_hash.clone().into());
+    payload.insert("fileHash".into(), block.file_hash.clone().into());
+    PointStruct {
+        id: point_id_for_segment(&block.segment_hash).to_string(),
+        vector,
+        payload,
+    }
+}
+
 /// Result of handling one file during scanning.
 enum FileOutcome {
     /// Skipped: too large or unchanged since last scan.
@@ -343,20 +362,7 @@ impl DirectoryScanner {
             let points: Vec<PointStruct> = blocks
                 .into_iter()
                 .zip(embeddings)
-                .map(|(block, vector)| {
-                    let mut payload = serde_json::Map::new();
-                    payload.insert("filePath".into(), block.file_path.clone().into());
-                    payload.insert("codeChunk".into(), block.content.clone().into());
-                    payload.insert("startLine".into(), (block.start_line as u64).into());
-                    payload.insert("endLine".into(), (block.end_line as u64).into());
-                    payload.insert("segmentHash".into(), block.segment_hash.clone().into());
-                    payload.insert("fileHash".into(), block.file_hash.clone().into());
-                    PointStruct {
-                        id: point_id_for_segment(&block.segment_hash).to_string(),
-                        vector,
-                        payload,
-                    }
-                })
+                .map(|(block, vector)| block_to_point(&block, vector))
                 .collect();
 
             vector_store.upsert_points(points).await?;
@@ -967,5 +973,30 @@ mod tests {
         // Locked against Python uuid5(ns, hash) — see qdrant.rs test
         let id = point_id_for_segment("a".repeat(64).as_str());
         assert_eq!(id.get_version(), Some(uuid::Version::Sha1));
+    }
+
+    #[test]
+    fn block_to_point_payload_matches_index_schema() {
+        let block = crate::traits::CodeBlock {
+            file_path: "src/a.ts".into(),
+            content: "fn main() {}".into(),
+            start_line: 3,
+            end_line: 4,
+            segment_hash: "abc".into(),
+            file_hash: "def".into(),
+        };
+        let point = block_to_point(&block, vec![0.25]);
+        assert_eq!(point.id, point_id_for_segment("abc").to_string());
+        assert_eq!(point.payload["filePath"], serde_json::json!("src/a.ts"));
+        assert_eq!(
+            point.payload["codeChunk"],
+            serde_json::json!("fn main() {}")
+        );
+        assert_eq!(point.payload["startLine"], serde_json::json!(3));
+        assert_eq!(point.payload["endLine"], serde_json::json!(4));
+        assert_eq!(point.payload["segmentHash"], serde_json::json!("abc"));
+        assert_eq!(point.payload["fileHash"], serde_json::json!("def"));
+        assert_eq!(point.payload.len(), 6);
+        assert_eq!(point.vector, vec![0.25]);
     }
 }

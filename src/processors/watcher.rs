@@ -12,19 +12,15 @@ use std::sync::Arc;
 
 use notify::event::{ModifyKind, RenameMode};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use serde_json::Map;
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
-use uuid::Uuid;
 
 use crate::log;
-use crate::shared::constants::{
-    BATCH_SEGMENT_THRESHOLD, MAX_FILE_SIZE_BYTES, QDRANT_CODE_BLOCK_NAMESPACE,
-};
+use crate::shared::constants::{BATCH_SEGMENT_THRESHOLD, MAX_FILE_SIZE_BYTES};
 use crate::shared::supported_extensions::is_supported_extension;
 use crate::traits::{CacheManager, CodeParser, Embedder, PointStruct, VectorStore};
 
-use super::scanner::IGNORED_DIRECTORIES;
+use super::scanner::{block_to_point, IGNORED_DIRECTORIES};
 
 /// Progress callback for per-file results within a batch.
 pub type FileProgressCallback<'a> = Option<&'a dyn Fn(usize, usize, &Path, &FileProcessingResult)>;
@@ -336,8 +332,6 @@ impl FileWatcher {
             // consistent with the TS watcher — and with our fixed scanner)
             vector_store.delete_points_by_file_path(&path_str).await?;
 
-            let namespace = Uuid::parse_str(QDRANT_CODE_BLOCK_NAMESPACE)
-                .expect("namespace constant is a valid UUID");
             let mut texts = Vec::new();
             let mut kept_blocks = Vec::new();
             for block in &blocks {
@@ -362,20 +356,7 @@ impl FileWatcher {
             let points: Vec<PointStruct> = kept_blocks
                 .into_iter()
                 .zip(embedding_response.embeddings)
-                .map(|(block, vector)| {
-                    let mut payload = Map::new();
-                    payload.insert("filePath".into(), block.file_path.clone().into());
-                    payload.insert("codeChunk".into(), block.content.clone().into());
-                    payload.insert("startLine".into(), (block.start_line as u64).into());
-                    payload.insert("endLine".into(), (block.end_line as u64).into());
-                    payload.insert("segmentHash".into(), block.segment_hash.clone().into());
-                    payload.insert("fileHash".into(), block.file_hash.clone().into());
-                    PointStruct {
-                        id: Uuid::new_v5(&namespace, block.segment_hash.as_bytes()).to_string(),
-                        vector,
-                        payload,
-                    }
-                })
+                .map(|(block, vector)| block_to_point(&block, vector))
                 .collect();
 
             vector_store.upsert_points(points).await?;
