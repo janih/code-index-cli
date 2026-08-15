@@ -83,6 +83,14 @@ Deviations found during the port (agreed as TS-gap mirrors):
   `code-index clear && code-index index`. The watcher still deletes
   unconditionally (self-healing on every touch).
 
+- (review round 1, live-verified) `--directory` server-side filtering
+  works against real Qdrant: the second payload-index creation replaces
+  the keyword index with a text index on `filePath`, and
+  `match: {text: <prefix>}` does AND-token prefix filtering. Relative
+  prefixes now resolve against the workspace string from the CLI instead
+  of `process.cwd()`/`current_dir()` — TS (and the first Rust port)
+  resolved against CWD, which canonicalizes symlinks on macOS
+  (/tmp -> /private/tmp) and silently matched nothing.
 - (review round 1) `indexing.maxFileSizeBytes` is honored by the scanner
   and watcher (TS parses/validates it but always indexes with the 1 MiB
   constant). `indexing.includeExtensions` remains accepted-but-inert in

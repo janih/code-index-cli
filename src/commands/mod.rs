@@ -203,7 +203,13 @@ pub async fn search(
     let vector_store = factory.create_vector_store()?;
     vector_store.initialize().await?;
 
-    let search_service = SearchService::new(config_manager, state_manager, embedder, vector_store);
+    let search_service = SearchService::new(
+        config_manager,
+        state_manager,
+        workspace.clone(),
+        embedder,
+        vector_store,
+    );
 
     let results = search_service
         .search_index(&query, directory.as_deref(), limit)
