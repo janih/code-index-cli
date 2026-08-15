@@ -1,5 +1,8 @@
-//! Embedder providers: openai, ollama, openai-compatible, gemini, mistral,
-//! vercel-ai-gateway, openrouter, and bedrock (behind the `bedrock` feature).
+//! Embedding provider implementations.
 //!
-//! Port of `src/embedders/*`. Shared HTTP base with retry + error
-//! sanitization lands in Phase 1; providers fan out in Phase 2.
+//! Port of `src/embedders/*`. All providers are plain HTTPS APIs called with
+//! `reqwest`; provider-specific auth/payload shaping lives in each module.
+
+pub mod openai;
+
+pub use openai::OpenAiEmbedder;
