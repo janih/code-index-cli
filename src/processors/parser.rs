@@ -110,7 +110,7 @@ impl LineCodeParser {
                 );
 
                 current_block_lines = Vec::new();
-                current_block_start_line = i + 2; // 1-indexed
+                current_block_start_line = i + 1; // 1-indexed
                 current_size = 0;
             }
 
@@ -348,10 +348,38 @@ mod tests {
             assert!(block.end_line >= block.start_line);
             assert!(block.content.trim().len() >= MIN_BLOCK_CHARS);
         }
-        // Blocks are in order and non-overlapping
+        // Blocks are contiguous and exactly cover the file (a `+1` start-line
+        // regression here previously left phantom gap lines — review #3).
         for window in blocks.windows(2) {
-            assert!(window[1].start_line > window[0].end_line);
+            assert_eq!(window[1].start_line, window[0].end_line + 1);
         }
+        assert_eq!(blocks.last().unwrap().end_line, 100);
+    }
+
+    /// Second block must start exactly at the line after the first block —
+    /// regression test for the ported TS off-by-one (start was one too high).
+    #[tokio::test]
+    async fn block_start_lines_are_exact_after_split() {
+        // 10-char lines (+1 newline) => line_size 11; MAX=1000 triggers the
+        // split at iteration i=90 (90*11+11 > 1000): block 1 = lines 1..90,
+        // block 2 must start at line 91.
+        let content = (1..=200)
+            .map(|i| format!("12345678{i:02}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let blocks = parser()
+            .parse_file(
+                std::path::Path::new("exact.ts"),
+                Some(ParseOptions {
+                    content: Some(content),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(blocks[0].start_line, 1);
+        assert_eq!(blocks[0].end_line, 90);
+        assert_eq!(blocks[1].start_line, 91);
     }
 
     #[tokio::test]

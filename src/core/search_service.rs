@@ -3,7 +3,7 @@
 //! Port of `src/core/search-service.ts`: embed the query (query-prefix
 //! aware), vector search, then exact directory-prefix post-filtering.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::config::manager::ConfigManager;
@@ -16,6 +16,7 @@ use super::state_manager::{IndexingState, StateManager};
 pub struct SearchService {
     config_manager: ConfigManager,
     state_manager: Arc<StateManager>,
+    workspace_path: PathBuf,
     embedder: Arc<dyn Embedder>,
     vector_store: Arc<dyn VectorStore>,
 }
@@ -24,12 +25,14 @@ impl SearchService {
     pub fn new(
         config_manager: ConfigManager,
         state_manager: Arc<StateManager>,
+        workspace_path: PathBuf,
         embedder: Arc<dyn Embedder>,
         vector_store: Arc<dyn VectorStore>,
     ) -> Self {
         Self {
             config_manager,
             state_manager,
+            workspace_path,
             embedder,
             vector_store,
         }
@@ -93,7 +96,8 @@ impl SearchService {
             .next()
             .ok_or_else(|| anyhow::anyhow!("Failed to generate embedding for query."))?;
 
-        let normalized_prefix = directory_prefix.map(normalize_directory_prefix);
+        let normalized_prefix =
+            directory_prefix.map(|prefix| normalize_directory_prefix(prefix, &self.workspace_path));
 
         let results = self
             .vector_store
@@ -122,16 +126,21 @@ impl SearchService {
     }
 }
 
-/// Resolves a (possibly relative) prefix against CWD and ensures a trailing
-/// separator, matching the stored absolute file paths (TS behavior).
-fn normalize_directory_prefix(directory_prefix: &str) -> String {
-    let path = PathBuf::from(directory_prefix);
+/// Resolves a (possibly relative) prefix against the workspace and ensures
+/// a trailing separator, matching the stored file paths.
+///
+/// Relative prefixes resolve against the workspace string given on the CLI —
+/// NOT `current_dir()`: on macOS the CWD canonicalizes symlinks (e.g.
+/// /tmp -> /private/tmp) while stored paths keep the workspace string as
+/// given, so CWD-based resolution silently matched nothing (found during
+/// live verification of `--directory`, review round 1). Lexical
+/// normalization only (collapses `.` / `..`), like Node's path.resolve.
+fn normalize_directory_prefix(directory_prefix: &str, base: &Path) -> String {
+    let path = Path::new(directory_prefix);
     let resolved = if path.is_absolute() {
-        path
+        path.to_path_buf()
     } else {
-        std::env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("."))
-            .join(path)
+        base.join(path)
     };
     // Lexical normalization like Node's path.resolve (collapses "." / ".."):
     let mut parts: Vec<std::path::Component> = Vec::new();
@@ -283,7 +292,13 @@ mod tests {
         let sm = Arc::new(StateManager::new());
         sm.set_system_state(state, None);
         (
-            SearchService::new(test_config(), sm, embedder.clone(), store.clone()),
+            SearchService::new(
+                test_config(),
+                sm,
+                PathBuf::from("/ws"),
+                embedder.clone(),
+                store.clone(),
+            ),
             embedder,
             store,
         )
@@ -326,15 +341,40 @@ mod tests {
         ];
         let (service, _e, store) = service_with(results, IndexingState::Indexed);
 
-        let cwd = std::env::current_dir()
-            .unwrap()
-            .to_string_lossy()
-            .replace('\\', "/");
-        let filtered = service.search_index("q", Some("."), None).await.unwrap();
-        // "./" prefix => points at CWD; neither mock path starts with it
-        assert_eq!(filtered.len(), 0);
+        // Relative prefix resolves against the WORKSPACE (not CWD — CWD
+        // canonicalization broke matching on macOS symlinked paths).
+        let filtered = service.search_index("q", Some("src"), None).await.unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(
+            filtered[0].payload.as_ref().unwrap().file_path,
+            "/ws/src/a.ts"
+        );
         let sent_prefix = store.last_prefix.lock().unwrap().clone().unwrap();
-        assert_eq!(sent_prefix, format!("{cwd}/"));
+        assert_eq!(sent_prefix, "/ws/src/");
+    }
+
+    #[tokio::test]
+    async fn directory_prefix_supports_dot_and_dotdot() {
+        let results = vec![
+            result_with_path("/ws/src/a.ts"),
+            result_with_path("/ws/other/b.ts"),
+        ];
+        let (service, _e, store) = service_with(results, IndexingState::Indexed);
+
+        let filtered = service
+            .search_index("q", Some("./src/../src"), None)
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(sent(store.clone()), "/ws/src/");
+
+        let filtered = service.search_index("q", Some("."), None).await.unwrap();
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(sent(store), "/ws/");
+    }
+
+    fn sent(store: Arc<MockStore>) -> String {
+        store.last_prefix.lock().unwrap().clone().unwrap()
     }
 
     #[tokio::test]

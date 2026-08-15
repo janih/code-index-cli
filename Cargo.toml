@@ -1,6 +1,6 @@
 [package]
 name = "code-index"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Standalone CLI tool for codebase indexing with semantic search"
 license = "Apache-2.0"
@@ -13,7 +13,11 @@ hex = "0.4"
 ignore = "0.4"
 notify = "8"
 sha2 = "0.10"
-tokio = { version = "1", features = ["full"] }
+# tokio features actually used by this crate: multi-thread runtime
+# (main), test macros + select/pin, sync primitives (mpsc/Semaphore/Notify),
+# timers (debounce/retry/backoff) and ctrl-c (watch). Anything else (fs, net,
+# process, io) comes in transitively via reqwest if it needs it.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }

@@ -9,6 +9,7 @@
 use async_trait::async_trait;
 
 use crate::shared::embedding_models::{get_model_query_prefix, EmbedderProvider};
+use crate::shared::validation::sanitize_error_message;
 use crate::traits::{Embedder, EmbedderInfo, EmbeddingResponse, ValidationResult};
 
 use super::openai::{call_embeddings_with_retry, EmbeddingBatchResponse};
@@ -29,7 +30,7 @@ impl OpenAiCompatibleEmbedder {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(300))
                 .build()
-                .unwrap_or_default(),
+                .expect("embedding client with fixed timeout builds"),
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key,
             default_model_id: model_id.unwrap_or_else(|| DEFAULT_MODEL.to_string()),
@@ -49,25 +50,27 @@ impl OpenAiCompatibleEmbedder {
             .json(&serde_json::json!({ "model": model, "input": texts }))
             .send()
             .await
-            .map_err(|err| (None, err.to_string()))?;
+            .map_err(|err| (None, sanitize_error_message(&err.to_string())))?;
 
         let status = response.status().as_u16();
         if status == 429 || status >= 500 {
             let body = response.text().await.unwrap_or_default();
-            return Err((Some(status), body));
+            return Err((Some(status), sanitize_error_message(&body)));
         }
         if !(200..300).contains(&status) {
             let body = response.text().await.unwrap_or_default();
             return Err((
                 Some(status),
-                format!("OpenAI Compatible API error ({status}): {body}"),
+                sanitize_error_message(&format!("OpenAI Compatible API error ({status}): {body}")),
             ));
         }
 
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|err| (Some(status), format!("Invalid response body: {err}")))?;
+        let body: serde_json::Value = response.json().await.map_err(|err| {
+            (
+                Some(status),
+                sanitize_error_message(&format!("Invalid response body: {err}")),
+            )
+        })?;
         Ok(super::openai::parse_openai_response(&body))
     }
 }

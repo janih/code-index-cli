@@ -203,7 +203,13 @@ pub async fn search(
     let vector_store = factory.create_vector_store()?;
     vector_store.initialize().await?;
 
-    let search_service = SearchService::new(config_manager, state_manager, embedder, vector_store);
+    let search_service = SearchService::new(
+        config_manager,
+        state_manager,
+        workspace.clone(),
+        embedder,
+        vector_store,
+    );
 
     let results = search_service
         .search_index(&query, directory.as_deref(), limit)
@@ -331,6 +337,8 @@ pub async fn watch(
                 "\r   Progress: {}/{} {} ({}%)",
                 status.processed_items, status.total_items, status.current_item_unit, percent
             );
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
         }
         IndexingState::Indexed => println!("\n✅ {}", status.message),
         _ => {}
@@ -354,6 +362,7 @@ pub async fn watch(
         Some(vector_store),
         factory.build_ignore_matcher()?,
         Some(config_manager.batch_size().max(1) as usize),
+        Some(config_manager.max_file_size_bytes()),
     ));
     let (_keepalive, mut events) = file_watcher.start_notify_stream()?;
 

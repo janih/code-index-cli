@@ -58,10 +58,10 @@ impl ServiceFactory {
         match provider {
             EmbedderProvider::OpenAi => {
                 let api_key = config.api_key().ok_or_else(|| {
-					anyhow::anyhow!(
-						"OpenAI API key is required. Set CODE_INDEX_CLI_EMBEDDER_API_KEY or configure in .code-index.json"
-					)
-				})?;
+                    anyhow::anyhow!(
+                        "OpenAI API key is required. Set CODE_INDEX_CLI_EMBEDDER_API_KEY or configure in .code-index.json"
+                    )
+                })?;
                 Ok(Arc::new(OpenAiEmbedder::new(
                     api_key.to_string(),
                     config.model_id().map(String::from),
@@ -145,9 +145,9 @@ impl ServiceFactory {
             None => match config.model_dimension() {
                 Some(dimension) if dimension > 0 => dimension as usize,
                 _ => anyhow::bail!(
-					"Could not determine vector dimension for model \"{model_id}\" (provider: {provider}). \
-					 Set embedder.modelDimension in your config file."
-				),
+                    "Could not determine vector dimension for model \"{model_id}\" (provider: {provider}). \
+                     Set embedder.modelDimension in your config file."
+                ),
             },
         };
 
@@ -178,6 +178,7 @@ impl ServiceFactory {
             Arc::clone(&self.cache_manager) as Arc<dyn CacheManager>,
             self.build_ignore_matcher()?,
             threshold,
+            Some(self.config_manager.max_file_size_bytes()),
         )))
     }
 

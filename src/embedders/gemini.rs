@@ -6,6 +6,7 @@
 use async_trait::async_trait;
 
 use crate::shared::embedding_models::{get_model_query_prefix, EmbedderProvider};
+use crate::shared::validation::sanitize_error_message;
 use crate::traits::{Embedder, EmbedderInfo, EmbeddingResponse, EmbeddingUsage, ValidationResult};
 
 const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta";
@@ -25,7 +26,7 @@ impl GeminiEmbedder {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(300))
                 .build()
-                .unwrap_or_default(),
+                .expect("embedding client with fixed timeout builds"),
             base_url: DEFAULT_BASE_URL.to_string(),
             api_key,
             default_model_id: model_id.unwrap_or_else(|| DEFAULT_MODEL.to_string()),
@@ -52,7 +53,11 @@ impl GeminiEmbedder {
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Gemini API error ({}): {}", status, body);
+            anyhow::bail!(
+                "Gemini API error ({}): {}",
+                status,
+                sanitize_error_message(&body)
+            );
         }
 
         let body: serde_json::Value = response.json().await?;

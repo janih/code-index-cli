@@ -98,8 +98,12 @@ impl QdrantVectorStore {
         }
         let client = reqwest::Client::builder()
             .default_headers(headers)
+            // Every call waits forever without this (hung connection would
+            // freeze index/search/watch until the process is killed).
+            .timeout(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(10))
             .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
+            .expect("reqwest client with fixed headers builds");
 
         Self {
             client,
@@ -124,7 +128,11 @@ impl QdrantVectorStore {
         if !response.status().is_success() {
             return None;
         }
-        response.json::<Value>().await.ok()?["result"].take().into()
+        let mut body = response.json::<Value>().await.ok()?;
+        // A missing/non-object `result` must mean "no info", not Some(Null)
+        // (which would make collection_exists() claim true for garbage).
+        let result = body.as_object_mut()?.remove("result")?;
+        result.is_object().then_some(result)
     }
 
     async fn create_collection(&self) -> anyhow::Result<()> {
@@ -223,9 +231,9 @@ impl VectorStore for QdrantVectorStore {
                     let existing_vector_size = extract_vector_size(&info);
                     if existing_vector_size != self.vector_size {
                         log::info(&format!(
-							"Vector size mismatch (existing: {}, required: {}). Recreating collection...",
-							existing_vector_size, self.vector_size
-						));
+                            "Vector size mismatch (existing: {}, required: {}). Recreating collection...",
+                            existing_vector_size, self.vector_size
+                        ));
                         self.delete_collection().await?;
                         self.create_collection().await?;
                         created = true;

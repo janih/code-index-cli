@@ -12,19 +12,15 @@ use std::sync::Arc;
 
 use notify::event::{ModifyKind, RenameMode};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use serde_json::Map;
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
-use uuid::Uuid;
 
 use crate::log;
-use crate::shared::constants::{
-    BATCH_SEGMENT_THRESHOLD, MAX_FILE_SIZE_BYTES, QDRANT_CODE_BLOCK_NAMESPACE,
-};
+use crate::shared::constants::{BATCH_SEGMENT_THRESHOLD, MAX_FILE_SIZE_BYTES};
 use crate::shared::supported_extensions::is_supported_extension;
 use crate::traits::{CacheManager, CodeParser, Embedder, PointStruct, VectorStore};
 
-use super::scanner::IGNORED_DIRECTORIES;
+use super::scanner::{block_to_point, IGNORED_DIRECTORIES};
 
 /// Progress callback for per-file results within a batch.
 pub type FileProgressCallback<'a> = Option<&'a dyn Fn(usize, usize, &Path, &FileProcessingResult)>;
@@ -91,6 +87,9 @@ pub struct FileWatcher {
     code_parser: Arc<dyn CodeParser>,
     #[allow(dead_code)]
     batch_segment_threshold: usize,
+    /// Largest indexed file; honors `indexing.maxFileSizeBytes` (default
+    /// 1 MiB, the TS constant).
+    max_file_size_bytes: u64,
 }
 
 impl FileWatcher {
@@ -101,6 +100,7 @@ impl FileWatcher {
         vector_store: Option<Arc<dyn VectorStore>>,
         ignore_matcher: ignore::gitignore::Gitignore,
         batch_segment_threshold: Option<usize>,
+        max_file_size_bytes: Option<u64>,
     ) -> Self {
         let workspace_canonical = workspace_path
             .canonicalize()
@@ -114,6 +114,7 @@ impl FileWatcher {
             ignore_matcher,
             code_parser: Arc::new(crate::processors::parser::LineCodeParser::new()),
             batch_segment_threshold: batch_segment_threshold.unwrap_or(BATCH_SEGMENT_THRESHOLD),
+            max_file_size_bytes: max_file_size_bytes.unwrap_or(MAX_FILE_SIZE_BYTES),
         }
     }
 
@@ -196,10 +197,9 @@ impl FileWatcher {
         }
 
         if let Ok(relative) = path.strip_prefix(&self.workspace_path) {
-            !self
-                .ignore_matcher
-                .matched(relative, path.is_dir())
-                .is_ignore()
+            // Ancestor-aware (dir rules cover contained files) — same helper
+            // the scanner uses; raw `matched` would index secrets/ files.
+            !crate::shared::ignore_match::is_ignored(&self.ignore_matcher, relative, path.is_dir())
         } else {
             true
         }
@@ -304,7 +304,7 @@ impl FileWatcher {
 
         let result: anyhow::Result<FileProcessingResult> = async {
             let metadata = std::fs::metadata(file_path)?;
-            if metadata.len() > MAX_FILE_SIZE_BYTES {
+            if metadata.len() > self.max_file_size_bytes {
                 return Ok(skip("File too large", None));
             }
 
@@ -337,8 +337,6 @@ impl FileWatcher {
             // consistent with the TS watcher — and with our fixed scanner)
             vector_store.delete_points_by_file_path(&path_str).await?;
 
-            let namespace = Uuid::parse_str(QDRANT_CODE_BLOCK_NAMESPACE)
-                .expect("namespace constant is a valid UUID");
             let mut texts = Vec::new();
             let mut kept_blocks = Vec::new();
             for block in &blocks {
@@ -350,24 +348,20 @@ impl FileWatcher {
             }
 
             let embedding_response = embedder.create_embeddings(&texts, None, false).await?;
+            // Zipping with a short embedding list would silently drop tail
+            // blocks — fail loudly instead (same guard as the scanner).
+            if embedding_response.embeddings.len() != texts.len() {
+                anyhow::bail!(
+                    "Embedder returned {} embeddings for {} texts; refusing to upsert a partial batch",
+                    embedding_response.embeddings.len(),
+                    texts.len()
+                );
+            }
 
             let points: Vec<PointStruct> = kept_blocks
                 .into_iter()
                 .zip(embedding_response.embeddings)
-                .map(|(block, vector)| {
-                    let mut payload = Map::new();
-                    payload.insert("filePath".into(), block.file_path.clone().into());
-                    payload.insert("codeChunk".into(), block.content.clone().into());
-                    payload.insert("startLine".into(), (block.start_line as u64).into());
-                    payload.insert("endLine".into(), (block.end_line as u64).into());
-                    payload.insert("segmentHash".into(), block.segment_hash.clone().into());
-                    payload.insert("fileHash".into(), block.file_hash.clone().into());
-                    PointStruct {
-                        id: Uuid::new_v5(&namespace, block.segment_hash.as_bytes()).to_string(),
-                        vector,
-                        payload,
-                    }
-                })
+                .map(|(block, vector)| block_to_point(&block, vector))
                 .collect();
 
             vector_store.upsert_points(points).await?;
@@ -549,6 +543,7 @@ mod tests {
             Some(store.clone()),
             ignore::gitignore::Gitignore::empty(),
             None,
+            None,
         );
         Fixture {
             watcher,
@@ -613,6 +608,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn process_file_fails_loudly_on_embedding_mismatch() {
+        let dir = temp_workspace("mismatch");
+        let file = dir.join("a.ts");
+        std::fs::write(&file, lines(10)).unwrap();
+
+        struct TruncatingEmbedder;
+        #[async_trait::async_trait]
+        impl Embedder for TruncatingEmbedder {
+            async fn create_embeddings(
+                &self,
+                texts: &[String],
+                _model: Option<&str>,
+                _is_query: bool,
+            ) -> anyhow::Result<EmbeddingResponse> {
+                let mut embeddings: Vec<Vec<f32>> = texts.iter().map(|_| vec![0.1f32; 4]).collect();
+                embeddings.pop();
+                Ok(EmbeddingResponse {
+                    embeddings,
+                    usage: None,
+                })
+            }
+            async fn validate_configuration(&self) -> ValidationResult {
+                ValidationResult::ok()
+            }
+            fn embedder_info(&self) -> EmbedderInfo {
+                EmbedderInfo {
+                    name: crate::shared::embedding_models::EmbedderProvider::OpenAi,
+                }
+            }
+        }
+
+        let store = Arc::new(MockStore::new());
+        let watcher = FileWatcher::new(
+            dir.clone(),
+            Arc::new(MockCache {
+                hashes: Mutex::new(HashMap::new()),
+            }),
+            Some(Arc::new(TruncatingEmbedder)),
+            Some(store.clone()),
+            ignore::gitignore::Gitignore::empty(),
+            None,
+            None,
+        );
+
+        let result = watcher.process_file(&file).await;
+        assert_eq!(result.status, FileStatus::Error);
+        assert!(result
+            .reason
+            .as_deref()
+            .unwrap_or_default()
+            .contains("refusing to upsert a partial batch"));
+        // Delete already happened (delete-first), but nothing was upserted
+        assert!(store
+            .ops
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|op| op.starts_with("delete")));
+    }
+
+    #[tokio::test]
     async fn deletions_remove_points_and_cache() {
         let dir = temp_workspace("delete");
         let f = fixture(dir.clone());
@@ -671,6 +727,41 @@ mod tests {
             vec![dir.join("old.ts")],
         ));
         assert_eq!(from, vec![(dir.join("old.ts"), WatchEventType::Delete)]);
+    }
+
+    /// Regression: a directory rule like `secrets/` must hide files under it
+    /// (the scanner uses the same helper — review bug #2).
+    #[tokio::test]
+    async fn ignored_directory_rule_hides_descendants() {
+        let dir = temp_workspace("ignored-dir");
+        let store = Arc::new(MockStore::new());
+        let cache = Arc::new(MockCache {
+            hashes: std::sync::Mutex::new(HashMap::new()),
+        });
+        let mut builder = ignore::gitignore::GitignoreBuilder::new(&dir);
+        builder.add_line(None, "secrets/").unwrap();
+        let watcher = FileWatcher::new(
+            dir.clone(),
+            cache,
+            Some(Arc::new(MockEmbedder)),
+            Some(store),
+            builder.build().unwrap(),
+            None,
+            None,
+        );
+
+        let mk = |paths: Vec<PathBuf>| Event {
+            kind: EventKind::Create(notify::event::CreateKind::File),
+            paths,
+            attrs: Default::default(),
+        };
+        assert!(watcher
+            .classify_event(&mk(vec![dir.join("secrets/new.ts")]))
+            .is_empty());
+        assert_eq!(
+            watcher.classify_event(&mk(vec![dir.join("src/ok.ts")])),
+            vec![(dir.join("src/ok.ts"), WatchEventType::Create)]
+        );
     }
 
     #[tokio::test]

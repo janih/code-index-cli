@@ -69,6 +69,25 @@ pub fn point_id_for_segment(segment_hash: &str) -> Uuid {
     Uuid::new_v5(&namespace, segment_hash.as_bytes())
 }
 
+/// Builds the indexed point for one code block: deterministic uuid-v5 id
+/// plus the payload schema (filePath/codeChunk/startLine/endLine/
+/// segmentHash/fileHash). Shared by the scanner and the watcher so the two
+/// indexing paths cannot drift apart.
+pub fn block_to_point(block: &crate::traits::CodeBlock, vector: Vec<f32>) -> PointStruct {
+    let mut payload = serde_json::Map::new();
+    payload.insert("filePath".into(), block.file_path.clone().into());
+    payload.insert("codeChunk".into(), block.content.clone().into());
+    payload.insert("startLine".into(), (block.start_line as u64).into());
+    payload.insert("endLine".into(), (block.end_line as u64).into());
+    payload.insert("segmentHash".into(), block.segment_hash.clone().into());
+    payload.insert("fileHash".into(), block.file_hash.clone().into());
+    PointStruct {
+        id: point_id_for_segment(&block.segment_hash).to_string(),
+        vector,
+        payload,
+    }
+}
+
 /// Result of handling one file during scanning.
 enum FileOutcome {
     /// Skipped: too large or unchanged since last scan.
@@ -91,6 +110,7 @@ pub struct DirectoryScanner {
     cache_manager: Arc<dyn CacheManager>,
     ignore_matcher: Gitignore,
     batch_segment_threshold: usize,
+    max_file_size_bytes: u64,
 }
 
 impl DirectoryScanner {
@@ -101,6 +121,7 @@ impl DirectoryScanner {
         cache_manager: Arc<dyn CacheManager>,
         ignore_matcher: Gitignore,
         batch_segment_threshold: Option<usize>,
+        max_file_size_bytes: Option<u64>,
     ) -> Self {
         Self {
             embedder,
@@ -109,6 +130,7 @@ impl DirectoryScanner {
             cache_manager,
             ignore_matcher,
             batch_segment_threshold: batch_segment_threshold.unwrap_or(BATCH_SEGMENT_THRESHOLD),
+            max_file_size_bytes: max_file_size_bytes.unwrap_or(MAX_FILE_SIZE_BYTES),
         }
     }
 
@@ -132,6 +154,7 @@ impl DirectoryScanner {
         let cancelled = signal.clone();
         let cache = Arc::clone(&self.cache_manager);
         let parser = Arc::clone(&self.code_parser);
+        let max_file_size = self.max_file_size_bytes;
 
         let outcomes = stream::iter(supported_paths)
             .map(move |path| {
@@ -142,7 +165,7 @@ impl DirectoryScanner {
                     if token.as_ref().is_some_and(|t| t.is_cancelled()) {
                         return None;
                     }
-                    Some(Self::scan_one_file(path, cache, parser).await)
+                    Some(Self::scan_one_file(path, cache, parser, max_file_size).await)
                 }
             })
             .buffer_unordered(PARSING_CONCURRENCY);
@@ -172,16 +195,28 @@ impl DirectoryScanner {
                             break;
                         }
 
-                        // Delete stale points for this file BEFORE queueing its
-                        // new blocks. The TS code deleted after upserting
+                        // Delete stale points for this file BEFORE queueing
+                        // its new blocks. The TS code deleted after upserting
                         // (wiping the fresh points); delete-first keeps the
                         // index consistent — see REWRITE-PLAN deviations.
-                        if let Err(err) = self
-                            .vector_store
-                            .delete_points_by_multiple_file_paths(std::slice::from_ref(&file_path))
-                            .await
-                        {
-                            crate::log::error(&format!("Failed to delete stale points: {err}"));
+                        //
+                        // Skipped when the file has no cached hash: a
+                        // never-indexed file has no stale points, and the
+                        // unconditional delete cost one HTTP round-trip per
+                        // file on every initial scan. Cache and collection
+                        // are created/cleared together, so a missing hash
+                        // implies missing points — see the REWRITE-PLAN
+                        // caveat about lost cache files.
+                        if self.cache_manager.get_hash(&file_path).is_some() {
+                            if let Err(err) = self
+                                .vector_store
+                                .delete_points_by_multiple_file_paths(std::slice::from_ref(
+                                    &file_path,
+                                ))
+                                .await
+                            {
+                                crate::log::error(&format!("Failed to delete stale points: {err}"));
+                            }
                         }
 
                         for block in blocks {
@@ -314,29 +349,28 @@ impl DirectoryScanner {
                 .iter()
                 .map(|b| b.content.trim().to_string())
                 .collect();
+            let count = texts.len();
             let embedding_response = embedder.create_embeddings(&texts, None, false).await?;
+
+            // A provider returning fewer embeddings than inputs must fail the
+            // batch loudly — zipping would silently drop the tail blocks.
+            let embeddings = embedding_response.embeddings;
+            if embeddings.len() != count {
+                anyhow::bail!(
+                    "Embedder returned {} embeddings for {} texts; refusing to upsert a partial batch",
+                    embeddings.len(),
+                    count
+                );
+            }
 
             let points: Vec<PointStruct> = blocks
                 .into_iter()
-                .zip(embedding_response.embeddings)
-                .map(|(block, vector)| {
-                    let mut payload = serde_json::Map::new();
-                    payload.insert("filePath".into(), block.file_path.clone().into());
-                    payload.insert("codeChunk".into(), block.content.clone().into());
-                    payload.insert("startLine".into(), (block.start_line as u64).into());
-                    payload.insert("endLine".into(), (block.end_line as u64).into());
-                    payload.insert("segmentHash".into(), block.segment_hash.clone().into());
-                    payload.insert("fileHash".into(), block.file_hash.clone().into());
-                    PointStruct {
-                        id: point_id_for_segment(&block.segment_hash).to_string(),
-                        vector,
-                        payload,
-                    }
-                })
+                .zip(embeddings)
+                .map(|(block, vector)| block_to_point(&block, vector))
                 .collect();
 
             vector_store.upsert_points(points).await?;
-            Ok(texts_len(texts))
+            Ok(count)
         }
         .await;
 
@@ -356,12 +390,13 @@ impl DirectoryScanner {
         path: PathBuf,
         cache_manager: Arc<dyn CacheManager>,
         code_parser: Arc<dyn CodeParser>,
+        max_file_size: u64,
     ) -> FileOutcome {
         let file_path = path.to_string_lossy().into_owned();
         let block_file_path = file_path.clone();
         let result: anyhow::Result<FileOutcome> = async move {
             let metadata = std::fs::metadata(&path)?;
-            if metadata.len() > MAX_FILE_SIZE_BYTES {
+            if metadata.len() > max_file_size {
                 return Ok(FileOutcome::Skipped);
             }
 
@@ -454,11 +489,6 @@ impl DirectoryScanner {
     }
 }
 
-/// Helper kept tiny so the async block above stays readable.
-fn texts_len(texts: Vec<String>) -> usize {
-    texts.len()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,6 +515,37 @@ mod tests {
         ) -> anyhow::Result<EmbeddingResponse> {
             Ok(EmbeddingResponse {
                 embeddings: texts.iter().map(|_| vec![0.1f32; self.dimension]).collect(),
+                usage: None,
+            })
+        }
+
+        async fn validate_configuration(&self) -> ValidationResult {
+            ValidationResult::ok()
+        }
+
+        fn embedder_info(&self) -> crate::traits::EmbedderInfo {
+            crate::traits::EmbedderInfo {
+                name: crate::shared::embedding_models::EmbedderProvider::OpenAi,
+            }
+        }
+    }
+
+    /// Returns one embedding fewer than requested — simulates a provider
+    /// that drops oversized items (the OpenAI batching plan can do this).
+    struct TruncatingEmbedder;
+
+    #[async_trait::async_trait]
+    impl Embedder for TruncatingEmbedder {
+        async fn create_embeddings(
+            &self,
+            texts: &[String],
+            _model: Option<&str>,
+            _is_query: bool,
+        ) -> anyhow::Result<EmbeddingResponse> {
+            let mut embeddings: Vec<Vec<f32>> = texts.iter().map(|_| vec![0.1f32; 8]).collect();
+            embeddings.pop();
+            Ok(EmbeddingResponse {
+                embeddings,
                 usage: None,
             })
         }
@@ -650,6 +711,7 @@ mod tests {
             cache.clone(),
             Gitignore::empty(),
             None,
+            None,
         );
         Fixture { scanner, store }
     }
@@ -676,6 +738,8 @@ mod tests {
         assert_eq!(outcome.stats.skipped, 0);
         assert_eq!(outcome.total_block_count, 2);
         assert!(!f.store.upserted.lock().unwrap().is_empty());
+        // Fresh scan: no cached hashes => no stale-point deletes (review #10)
+        assert!(f.store.deleted_paths.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -738,6 +802,9 @@ mod tests {
             .await
             .unwrap();
         std::fs::write(&path, file_block_lines(12)).unwrap();
+        // Fresh scan recorded only upserts (no cached hashes yet); reset the
+        // op log so the ordering assertion below covers the re-index only.
+        f.store.ops.lock().unwrap().clear();
         f.scanner
             .scan_directory(&dir, ScanCallbacks::default(), None)
             .await
@@ -763,6 +830,36 @@ mod tests {
                 "delete@{delete_idx} must precede upsert@{upsert_idx}: {ops:?}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn skips_files_above_configured_max_size() {
+        let dir = temp_workspace("custom-max");
+        std::fs::write(dir.join("big.ts"), "x".repeat(300)).unwrap();
+        // ~80 bytes: above MIN_BLOCK_CHARS so it still indexes
+        std::fs::write(
+            dir.join("small.ts"),
+            format!("fn a() {{ {} }}", "y".repeat(60)),
+        )
+        .unwrap();
+
+        let store = Arc::new(MockVectorStore::new());
+        let scanner = DirectoryScanner::new(
+            Arc::new(MockEmbedder { dimension: 8 }),
+            store,
+            Arc::new(crate::processors::parser::LineCodeParser::new()),
+            Arc::new(MockCache::new()),
+            Gitignore::empty(),
+            None,
+            Some(200), // custom indexing.maxFileSizeBytes
+        );
+
+        let outcome = scanner
+            .scan_directory(&dir, ScanCallbacks::default(), None)
+            .await
+            .unwrap();
+        assert_eq!(outcome.stats.skipped, 1);
+        assert_eq!(outcome.stats.processed, 1);
     }
 
     #[tokio::test]
@@ -827,6 +924,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn embedding_count_mismatch_fails_batch_loudly() {
+        // Exactly 60 blocks = one spawned batch (soft-error path via
+        // on_error); a remainder would take the inline hard-error path.
+        let dir = temp_workspace("mismatch");
+        for i in 0..60 {
+            std::fs::write(dir.join(format!("f{i}.ts")), file_block_lines(20)).unwrap();
+        }
+
+        let store = Arc::new(MockVectorStore::new());
+        let scanner = DirectoryScanner::new(
+            Arc::new(TruncatingEmbedder),
+            store.clone(),
+            Arc::new(crate::processors::parser::LineCodeParser::new()),
+            Arc::new(MockCache::new()),
+            Gitignore::empty(),
+            None,
+            None,
+        );
+
+        let errors: Arc<std::sync::Mutex<Vec<String>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&errors);
+        let callbacks = ScanCallbacks {
+            on_error: Some(Arc::new(move |err| {
+                sink.lock().unwrap().push(err.to_string());
+            })),
+            ..Default::default()
+        };
+
+        let outcome = scanner.scan_directory(&dir, callbacks, None).await.unwrap();
+
+        // Nothing was upserted and the mismatch surfaced via on_error —
+        // previously the zip silently dropped one block per batch.
+        assert_eq!(outcome.total_block_count, 0);
+        assert!(store.upserted.lock().unwrap().is_empty());
+        let errors = errors.lock().unwrap();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("refusing to upsert a partial batch")),
+            "expected mismatch error, got: {errors:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn point_ids_are_deterministic_uuids() {
         let dir = temp_workspace("ids");
         std::fs::write(dir.join("a.ts"), file_block_lines(10)).unwrap();
@@ -868,5 +1010,30 @@ mod tests {
         // Locked against Python uuid5(ns, hash) — see qdrant.rs test
         let id = point_id_for_segment("a".repeat(64).as_str());
         assert_eq!(id.get_version(), Some(uuid::Version::Sha1));
+    }
+
+    #[test]
+    fn block_to_point_payload_matches_index_schema() {
+        let block = crate::traits::CodeBlock {
+            file_path: "src/a.ts".into(),
+            content: "fn main() {}".into(),
+            start_line: 3,
+            end_line: 4,
+            segment_hash: "abc".into(),
+            file_hash: "def".into(),
+        };
+        let point = block_to_point(&block, vec![0.25]);
+        assert_eq!(point.id, point_id_for_segment("abc").to_string());
+        assert_eq!(point.payload["filePath"], serde_json::json!("src/a.ts"));
+        assert_eq!(
+            point.payload["codeChunk"],
+            serde_json::json!("fn main() {}")
+        );
+        assert_eq!(point.payload["startLine"], serde_json::json!(3));
+        assert_eq!(point.payload["endLine"], serde_json::json!(4));
+        assert_eq!(point.payload["segmentHash"], serde_json::json!("abc"));
+        assert_eq!(point.payload["fileHash"], serde_json::json!("def"));
+        assert_eq!(point.payload.len(), 6);
+        assert_eq!(point.vector, vec![0.25]);
     }
 }

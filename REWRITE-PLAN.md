@@ -69,6 +69,36 @@ Pending within this phase: live E2E against real Qdrant + OpenAI key
 brings that provider in).
 
 Deviations found during the port (agreed as TS-gap mirrors):
+- (review round 1, v0.2.1) Parser fallback-chunk start lines were +1 due
+  to a ported TS bug (`i + 2` after pre-push flush) — FIXED in the port;
+  changes point IDs for multi-block files -> clear + reindex once.
+- (review round 1) `zip(blocks, embeddings)` truncation now fails loudly:
+  a provider returning fewer embeddings than texts aborts the batch
+  instead of silently dropping tail blocks.
+- (review round 1) Scanner skips the stale-point DELETE for files without
+  a cached hash (never indexed): initial scans no longer issue one DELETE
+  per file. Caveat: if the cache file is lost (manual delete, crash
+  between upsert and cache flush) while the collection keeps data,
+  re-indexed files' old points are not removed — recover with
+  `code-index clear && code-index index`. The watcher still deletes
+  unconditionally (self-healing on every touch).
+
+- (review round 1, live-verified) `--directory` server-side filtering
+  works against real Qdrant: the second payload-index creation replaces
+  the keyword index with a text index on `filePath`, and
+  `match: {text: <prefix>}` does AND-token prefix filtering. Relative
+  prefixes now resolve against the workspace string from the CLI instead
+  of `process.cwd()`/`current_dir()` — TS (and the first Rust port)
+  resolved against CWD, which canonicalizes symlinks on macOS
+  (/tmp -> /private/tmp) and silently matched nothing.
+- (review round 1) `indexing.maxFileSizeBytes` is honored by the scanner
+  and watcher (TS parses/validates it but always indexes with the 1 MiB
+  constant). `indexing.includeExtensions` remains accepted-but-inert in
+  BOTH versions — documented gap: wiring it means teaching the parser
+  about custom extensions too, deferred.
+- (review round 1, docs) `estimate_tokens` counts bytes where TS counts
+  UTF-16 code units: non-ASCII token estimates run higher, so batches
+  pack slightly smaller. Boundary-level difference only.
 - `--dry-run` is accepted but was never wired into the TS pipeline;
   the Rust port logs a warning instead of pretending it works.
 - Chunk sizing counts bytes where JS counted UTF-16 code units
@@ -138,10 +168,10 @@ startup — use `clear` + fresh `index` to reset.
   (loader tests cover layering + string coercion)
 - [x] Unknown model → `embedder.modelDimension` fallback
   (factory tests: fallback used, error when absent)
-- [~] Error messages redact API keys — helper ported
-  (`shared/validation.rs`) BUT: the TS version never wires it into any
-  command/embedder either (only own tests). Honest parity = unused in
-  both. Improvement candidate, not a deviation.
+- [x] Error messages redact API keys — helper ported AND wired into all
+  embedder error paths (review round 1). Deviation from TS, which never
+  wires its own helper: provider error bodies / network errors are passed
+  through `sanitize_error_message` before surfacing.
 - [x] Block limits: 50/1000/1.15/200 (const-asserted; parser tests)
 - [x] Search defaults: limit 50 (schema bounds 10..200), min score 0.4
   (schema-validated, load fails on violation — zod parity)

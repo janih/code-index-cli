@@ -116,7 +116,7 @@ impl HashCacheManager {
     /// tests) saves are deferred until `flush` is called instead — matching
     /// the safety margin the TS debounce timer loses on process exit too.
     fn schedule_save(&self) {
-        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        self.generation.fetch_add(1, Ordering::SeqCst);
         let Ok(handle) = tokio::runtime::Handle::try_current() else {
             return;
         };
@@ -128,13 +128,19 @@ impl HashCacheManager {
         let generation_counter = Arc::clone(&self.generation);
         let spawned = Arc::clone(&self.save_task_spawned);
         handle.spawn(async move {
+            // Re-read the generation each iteration: comparing against the
+            // spawn-time value spins forever once any second update lands
+            // in-window (and latches `spawned` = true) — review bug #1.
+            let mut last_seen = generation_counter.load(Ordering::SeqCst);
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(DEBOUNCE_MS)).await;
-                if generation_counter.load(Ordering::SeqCst) == generation {
+                let now = generation_counter.load(Ordering::SeqCst);
+                if now == last_seen {
                     shared.perform_save();
                     spawned.store(false, Ordering::SeqCst);
                     break;
                 }
+                last_seen = now;
             }
         });
     }
@@ -279,6 +285,27 @@ mod tests {
         cache.update_hash("b.ts", "hb".into());
         tokio::time::sleep(std::time::Duration::from_millis(DEBOUNCE_MS + 500)).await;
         assert!(cache.cache_path().exists());
+    }
+
+    /// Regression: two updates inside one debounce window must still save —
+    /// previously the task compared against its spawn-time generation and
+    /// spun forever once any second update landed (review bug #1).
+    #[tokio::test]
+    async fn repeated_in_window_updates_still_save() {
+        let cache = manager("two-updates");
+        cache.update_hash("a.ts", "h1".into());
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        cache.update_hash("b.ts", "h2".into());
+
+        // window from the last update, plus margin
+        tokio::time::sleep(std::time::Duration::from_millis(2 * DEBOUNCE_MS + 500)).await;
+        assert!(cache.cache_path().exists());
+
+        // and subsequent updates continue to debounce-save normally
+        cache.update_hash("c.ts", "h3".into());
+        tokio::time::sleep(std::time::Duration::from_millis(DEBOUNCE_MS + 500)).await;
+        let written = std::fs::read_to_string(cache.cache_path()).unwrap();
+        assert!(written.contains("h3"));
     }
 
     #[test]
