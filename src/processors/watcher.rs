@@ -196,10 +196,9 @@ impl FileWatcher {
         }
 
         if let Ok(relative) = path.strip_prefix(&self.workspace_path) {
-            !self
-                .ignore_matcher
-                .matched(relative, path.is_dir())
-                .is_ignore()
+            // Ancestor-aware (dir rules cover contained files) — same helper
+            // the scanner uses; raw `matched` would index secrets/ files.
+            !crate::shared::ignore_match::is_ignored(&self.ignore_matcher, relative, path.is_dir())
         } else {
             true
         }
@@ -671,6 +670,40 @@ mod tests {
             vec![dir.join("old.ts")],
         ));
         assert_eq!(from, vec![(dir.join("old.ts"), WatchEventType::Delete)]);
+    }
+
+    /// Regression: a directory rule like `secrets/` must hide files under it
+    /// (the scanner uses the same helper — review bug #2).
+    #[tokio::test]
+    async fn ignored_directory_rule_hides_descendants() {
+        let dir = temp_workspace("ignored-dir");
+        let store = Arc::new(MockStore::new());
+        let cache = Arc::new(MockCache {
+            hashes: std::sync::Mutex::new(HashMap::new()),
+        });
+        let mut builder = ignore::gitignore::GitignoreBuilder::new(&dir);
+        builder.add_line(None, "secrets/").unwrap();
+        let watcher = FileWatcher::new(
+            dir.clone(),
+            cache,
+            Some(Arc::new(MockEmbedder)),
+            Some(store),
+            builder.build().unwrap(),
+            None,
+        );
+
+        let mk = |paths: Vec<PathBuf>| Event {
+            kind: EventKind::Create(notify::event::CreateKind::File),
+            paths,
+            attrs: Default::default(),
+        };
+        assert!(watcher
+            .classify_event(&mk(vec![dir.join("secrets/new.ts")]))
+            .is_empty());
+        assert_eq!(
+            watcher.classify_event(&mk(vec![dir.join("src/ok.ts")])),
+            vec![(dir.join("src/ok.ts"), WatchEventType::Create)]
+        );
     }
 
     #[tokio::test]
