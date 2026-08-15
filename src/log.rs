@@ -2,9 +2,6 @@
 //!
 //! Port of `src/utils/logger.ts` — debug output is gated behind the `--debug` flag.
 
-// Some helpers are unused until command handlers wire in (Phase 1+).
-#![allow(dead_code)]
-
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static DEBUG_ENABLED: AtomicBool = AtomicBool::new(false);
