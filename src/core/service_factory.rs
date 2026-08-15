@@ -9,7 +9,9 @@ use ignore::gitignore::GitignoreBuilder;
 
 use crate::cache::HashCacheManager;
 use crate::config::manager::ConfigManager;
-use crate::embedders::{OpenAiCompatibleEmbedder, OpenAiEmbedder};
+use crate::embedders::{
+    GeminiEmbedder, OllamaEmbedder, OpenAiCompatibleEmbedder, OpenAiEmbedder, SimpleHttpEmbedder,
+};
 use crate::log;
 use crate::processors::parser::LineCodeParser;
 use crate::processors::scanner::DirectoryScanner;
@@ -78,10 +80,50 @@ impl ServiceFactory {
                     config.model_id().map(String::from),
                 )))
             }
-            other => anyhow::bail!(
-                "Embedder provider '{}' is not ported to the Rust version yet (Phase 2).",
-                other
-            ),
+            EmbedderProvider::Ollama => Ok(Arc::new(OllamaEmbedder::new(
+                config.base_url().map(String::from),
+                config.model_id().map(String::from),
+            ))),
+            EmbedderProvider::Gemini => {
+                let api_key = config
+                    .api_key()
+                    .ok_or_else(|| anyhow::anyhow!("Gemini API key is required."))?;
+                Ok(Arc::new(GeminiEmbedder::new(
+                    api_key.to_string(),
+                    config.model_id().map(String::from),
+                )))
+            }
+            EmbedderProvider::Mistral => {
+                let api_key = config
+                    .api_key()
+                    .ok_or_else(|| anyhow::anyhow!("Mistral API key is required."))?;
+                Ok(Arc::new(SimpleHttpEmbedder::mistral(
+                    api_key.to_string(),
+                    config.model_id().map(String::from),
+                )))
+            }
+            EmbedderProvider::VercelAiGateway => {
+                let api_key = config
+                    .api_key()
+                    .ok_or_else(|| anyhow::anyhow!("Vercel AI Gateway API key is required."))?;
+                Ok(Arc::new(SimpleHttpEmbedder::vercel_ai_gateway(
+                    api_key.to_string(),
+                    config.model_id().map(String::from),
+                )))
+            }
+            EmbedderProvider::OpenRouter => {
+                let api_key = config
+                    .api_key()
+                    .ok_or_else(|| anyhow::anyhow!("OpenRouter API key is required."))?;
+                Ok(Arc::new(SimpleHttpEmbedder::openrouter(
+                    api_key.to_string(),
+                    config.model_id().map(String::from),
+                    config.open_router_provider().map(String::from),
+                )))
+            }
+            EmbedderProvider::Bedrock => {
+                anyhow::bail!("Bedrock is deferred pending AWS SigV4 signing (see REWRITE-PLAN.md)")
+            }
         }
     }
 
