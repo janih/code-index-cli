@@ -129,9 +129,6 @@ impl DirectoryScanner {
         let mut pending_batches: JoinSet<anyhow::Result<usize>> = JoinSet::new();
         let batch_semaphore = Arc::new(tokio::sync::Semaphore::new(BATCH_PROCESSING_CONCURRENCY));
 
-        // Files whose prior points must be deleted after re-indexing
-        let mut files_to_reindex: Vec<String> = Vec::new();
-
         let cancelled = signal.clone();
         let cache = Arc::clone(&self.cache_manager);
         let parser = Arc::clone(&self.code_parser);
@@ -171,10 +168,20 @@ impl DirectoryScanner {
                     processed_count += 1;
 
                     if !blocks.is_empty() {
-                        files_to_reindex.push(file_path.clone());
-
                         if signal.as_ref().is_some_and(|t| t.is_cancelled()) {
                             break;
+                        }
+
+                        // Delete stale points for this file BEFORE queueing its
+                        // new blocks. The TS code deleted after upserting
+                        // (wiping the fresh points); delete-first keeps the
+                        // index consistent — see REWRITE-PLAN deviations.
+                        if let Err(err) = self
+                            .vector_store
+                            .delete_points_by_multiple_file_paths(std::slice::from_ref(&file_path))
+                            .await
+                        {
+                            crate::log::error(&format!("Failed to delete stale points: {err}"));
                         }
 
                         for block in blocks {
@@ -239,17 +246,6 @@ impl DirectoryScanner {
         while !pending_batches.is_empty() {
             total_block_count =
                 Self::await_one_batch(&mut pending_batches, total_block_count, &callbacks).await;
-        }
-
-        // Delete stale blocks for re-indexed files
-        if !files_to_reindex.is_empty() {
-            if let Err(err) = self
-                .vector_store
-                .delete_points_by_multiple_file_paths(&files_to_reindex)
-                .await
-            {
-                log::error(&format!("Failed to delete stale points: {err}"));
-            }
         }
 
         Ok(ScanOutcome {
@@ -507,6 +503,7 @@ mod tests {
     struct MockVectorStore {
         upserted: Mutex<Vec<Vec<PointStruct>>>,
         deleted_paths: Mutex<Vec<String>>,
+        ops: Mutex<Vec<String>>,
     }
 
     impl MockVectorStore {
@@ -514,6 +511,7 @@ mod tests {
             Self {
                 upserted: Mutex::new(Vec::new()),
                 deleted_paths: Mutex::new(Vec::new()),
+                ops: Mutex::new(Vec::new()),
             }
         }
     }
@@ -525,6 +523,14 @@ mod tests {
         }
 
         async fn upsert_points(&self, points: Vec<PointStruct>) -> anyhow::Result<()> {
+            let files: Vec<&str> = points
+                .iter()
+                .filter_map(|p| p.payload.get("filePath").and_then(|v| v.as_str()))
+                .collect();
+            self.ops
+                .lock()
+                .unwrap()
+                .push(format!("upsert:{}", files.join(",")));
             self.upserted.lock().unwrap().push(points);
             Ok(())
         }
@@ -718,6 +724,45 @@ mod tests {
         let deleted = f.store.deleted_paths.lock().unwrap();
         assert_eq!(deleted.len(), before + 1);
         assert!(deleted.last().unwrap().ends_with("a.ts"));
+    }
+
+    #[tokio::test]
+    async fn deletes_stale_points_before_upserting_new_ones() {
+        let dir = temp_workspace("order");
+        let path = dir.join("a.ts");
+        std::fs::write(&path, file_block_lines(10)).unwrap();
+
+        let f = fixture();
+        f.scanner
+            .scan_directory(&dir, ScanCallbacks::default(), None)
+            .await
+            .unwrap();
+        std::fs::write(&path, file_block_lines(12)).unwrap();
+        f.scanner
+            .scan_directory(&dir, ScanCallbacks::default(), None)
+            .await
+            .unwrap();
+
+        let ops = f.store.ops.lock().unwrap();
+        let upserts: Vec<usize> = ops
+            .iter()
+            .enumerate()
+            .filter(|(_, op)| op.starts_with("upsert:"))
+            .map(|(i, _)| i)
+            .collect();
+        let deletes: Vec<usize> = ops
+            .iter()
+            .enumerate()
+            .filter(|(_, op)| op.starts_with("delete:"))
+            .map(|(i, _)| i)
+            .collect();
+        // Every upsert of a file's points is preceded by that file's delete
+        for (upsert_idx, delete_idx) in upserts.iter().zip(deletes.iter()) {
+            assert!(
+                delete_idx < upsert_idx,
+                "delete@{delete_idx} must precede upsert@{upsert_idx}: {ops:?}"
+            );
+        }
     }
 
     #[tokio::test]
