@@ -349,6 +349,15 @@ impl FileWatcher {
             }
 
             let embedding_response = embedder.create_embeddings(&texts, None, false).await?;
+            // Zipping with a short embedding list would silently drop tail
+            // blocks — fail loudly instead (same guard as the scanner).
+            if embedding_response.embeddings.len() != texts.len() {
+                anyhow::bail!(
+                    "Embedder returned {} embeddings for {} texts; refusing to upsert a partial batch",
+                    embedding_response.embeddings.len(),
+                    texts.len()
+                );
+            }
 
             let points: Vec<PointStruct> = kept_blocks
                 .into_iter()
@@ -609,6 +618,66 @@ mod tests {
         assert_eq!(result.status, FileStatus::Skipped);
         assert_eq!(result.reason.as_deref(), Some("No parseable blocks"));
         assert!(f.cache.get_hash(&file.to_string_lossy()).is_some());
+    }
+
+    #[tokio::test]
+    async fn process_file_fails_loudly_on_embedding_mismatch() {
+        let dir = temp_workspace("mismatch");
+        let file = dir.join("a.ts");
+        std::fs::write(&file, lines(10)).unwrap();
+
+        struct TruncatingEmbedder;
+        #[async_trait::async_trait]
+        impl Embedder for TruncatingEmbedder {
+            async fn create_embeddings(
+                &self,
+                texts: &[String],
+                _model: Option<&str>,
+                _is_query: bool,
+            ) -> anyhow::Result<EmbeddingResponse> {
+                let mut embeddings: Vec<Vec<f32>> = texts.iter().map(|_| vec![0.1f32; 4]).collect();
+                embeddings.pop();
+                Ok(EmbeddingResponse {
+                    embeddings,
+                    usage: None,
+                })
+            }
+            async fn validate_configuration(&self) -> ValidationResult {
+                ValidationResult::ok()
+            }
+            fn embedder_info(&self) -> EmbedderInfo {
+                EmbedderInfo {
+                    name: crate::shared::embedding_models::EmbedderProvider::OpenAi,
+                }
+            }
+        }
+
+        let store = Arc::new(MockStore::new());
+        let watcher = FileWatcher::new(
+            dir.clone(),
+            Arc::new(MockCache {
+                hashes: Mutex::new(HashMap::new()),
+            }),
+            Some(Arc::new(TruncatingEmbedder)),
+            Some(store.clone()),
+            ignore::gitignore::Gitignore::empty(),
+            None,
+        );
+
+        let result = watcher.process_file(&file).await;
+        assert_eq!(result.status, FileStatus::Error);
+        assert!(result
+            .reason
+            .as_deref()
+            .unwrap_or_default()
+            .contains("refusing to upsert a partial batch"));
+        // Delete already happened (delete-first), but nothing was upserted
+        assert!(store
+            .ops
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|op| op.starts_with("delete")));
     }
 
     #[tokio::test]

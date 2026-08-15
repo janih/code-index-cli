@@ -314,11 +314,23 @@ impl DirectoryScanner {
                 .iter()
                 .map(|b| b.content.trim().to_string())
                 .collect();
+            let count = texts.len();
             let embedding_response = embedder.create_embeddings(&texts, None, false).await?;
+
+            // A provider returning fewer embeddings than inputs must fail the
+            // batch loudly — zipping would silently drop the tail blocks.
+            let embeddings = embedding_response.embeddings;
+            if embeddings.len() != count {
+                anyhow::bail!(
+                    "Embedder returned {} embeddings for {} texts; refusing to upsert a partial batch",
+                    embeddings.len(),
+                    count
+                );
+            }
 
             let points: Vec<PointStruct> = blocks
                 .into_iter()
-                .zip(embedding_response.embeddings)
+                .zip(embeddings)
                 .map(|(block, vector)| {
                     let mut payload = serde_json::Map::new();
                     payload.insert("filePath".into(), block.file_path.clone().into());
@@ -336,7 +348,7 @@ impl DirectoryScanner {
                 .collect();
 
             vector_store.upsert_points(points).await?;
-            Ok(texts_len(texts))
+            Ok(count)
         }
         .await;
 
@@ -454,11 +466,6 @@ impl DirectoryScanner {
     }
 }
 
-/// Helper kept tiny so the async block above stays readable.
-fn texts_len(texts: Vec<String>) -> usize {
-    texts.len()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,6 +492,37 @@ mod tests {
         ) -> anyhow::Result<EmbeddingResponse> {
             Ok(EmbeddingResponse {
                 embeddings: texts.iter().map(|_| vec![0.1f32; self.dimension]).collect(),
+                usage: None,
+            })
+        }
+
+        async fn validate_configuration(&self) -> ValidationResult {
+            ValidationResult::ok()
+        }
+
+        fn embedder_info(&self) -> crate::traits::EmbedderInfo {
+            crate::traits::EmbedderInfo {
+                name: crate::shared::embedding_models::EmbedderProvider::OpenAi,
+            }
+        }
+    }
+
+    /// Returns one embedding fewer than requested — simulates a provider
+    /// that drops oversized items (the OpenAI batching plan can do this).
+    struct TruncatingEmbedder;
+
+    #[async_trait::async_trait]
+    impl Embedder for TruncatingEmbedder {
+        async fn create_embeddings(
+            &self,
+            texts: &[String],
+            _model: Option<&str>,
+            _is_query: bool,
+        ) -> anyhow::Result<EmbeddingResponse> {
+            let mut embeddings: Vec<Vec<f32>> = texts.iter().map(|_| vec![0.1f32; 8]).collect();
+            embeddings.pop();
+            Ok(EmbeddingResponse {
+                embeddings,
                 usage: None,
             })
         }
@@ -824,6 +862,50 @@ mod tests {
         assert_eq!(batch_sizes.iter().sum::<usize>(), 130);
         // 60 + 60 + 10 (remainder)
         assert_eq!(batch_sizes.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn embedding_count_mismatch_fails_batch_loudly() {
+        // Exactly 60 blocks = one spawned batch (soft-error path via
+        // on_error); a remainder would take the inline hard-error path.
+        let dir = temp_workspace("mismatch");
+        for i in 0..60 {
+            std::fs::write(dir.join(format!("f{i}.ts")), file_block_lines(20)).unwrap();
+        }
+
+        let store = Arc::new(MockVectorStore::new());
+        let scanner = DirectoryScanner::new(
+            Arc::new(TruncatingEmbedder),
+            store.clone(),
+            Arc::new(crate::processors::parser::LineCodeParser::new()),
+            Arc::new(MockCache::new()),
+            Gitignore::empty(),
+            None,
+        );
+
+        let errors: Arc<std::sync::Mutex<Vec<String>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&errors);
+        let callbacks = ScanCallbacks {
+            on_error: Some(Arc::new(move |err| {
+                sink.lock().unwrap().push(err.to_string());
+            })),
+            ..Default::default()
+        };
+
+        let outcome = scanner.scan_directory(&dir, callbacks, None).await.unwrap();
+
+        // Nothing was upserted and the mismatch surfaced via on_error —
+        // previously the zip silently dropped one block per batch.
+        assert_eq!(outcome.total_block_count, 0);
+        assert!(store.upserted.lock().unwrap().is_empty());
+        let errors = errors.lock().unwrap();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("refusing to upsert a partial batch")),
+            "expected mismatch error, got: {errors:?}"
+        );
     }
 
     #[tokio::test]
