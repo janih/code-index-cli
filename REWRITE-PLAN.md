@@ -69,6 +69,13 @@ Pending within this phase: live E2E against real Qdrant + OpenAI key
 brings that provider in).
 
 Deviations found during the port (agreed as TS-gap mirrors):
+- (review round 1, v0.2.1) Parser fallback-chunk start lines were +1 due
+  to a ported TS bug (`i + 2` after pre-push flush) — FIXED in the port;
+  changes point IDs for multi-block files -> clear + reindex once.
+- (review round 1) The `zip(blocks, embeddings)` truncation concern and
+  per-file DELETE storms are scheduled alongside sanitize-wiring; see the
+  tracking list in CODE-REVIEW.md.
+
 - `--dry-run` is accepted but was never wired into the TS pipeline;
   the Rust port logs a warning instead of pretending it works.
 - Chunk sizing counts bytes where JS counted UTF-16 code units
