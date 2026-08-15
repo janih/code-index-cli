@@ -1,6 +1,6 @@
 [package]
 name = "code-index"
-version = "0.2.0-alpha.1"
+version = "0.2.0"
 edition = "2021"
 description = "Standalone CLI tool for codebase indexing with semantic search"
 license = "Apache-2.0"
