@@ -115,6 +115,9 @@ async fn main() -> anyhow::Result<()> {
             }
             let corpora = select_corpora(&config, &corpus)?;
             std::fs::create_dir_all(bench_dir.join("tmp"))?;
+            // Resolve once, fail fast with an actionable message — before
+            // any server starts or corpus is indexed.
+            let llama_server = config.resolve_llama_server()?;
 
             for corpus_spec in &corpora {
                 let golden = GoldenSet::load(&bench_dir, &corpus_spec.slug())?;
@@ -140,9 +143,7 @@ async fn main() -> anyhow::Result<()> {
                         .join("tmp")
                         .join(format!("{}-{slug}-server.log", corpus_spec.slug()));
                     let (mut llama, meta) =
-                        match server::LlamaServer::start(&config.llama_server, &gguf, port, &log)
-                            .await
-                        {
+                        match server::LlamaServer::start(&llama_server, &gguf, port, &log).await {
                             Ok(v) => v,
                             Err(err) => {
                                 eprintln!("[{slug}] {err:#}");

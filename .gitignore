@@ -12,3 +12,6 @@ bench/results/
 bench/reports/
 bench/tmp/
 bench/ws-*
+
+# machine-local benchmark paths (llamaServer, modelsDir)
+bench/models.local.json

@@ -32,7 +32,7 @@ impl LlamaServer {
     /// Spawns llama-server in embedding mode and waits until `/v1/models`
     /// responds, returning the reported model metadata.
     pub async fn start(
-        llama_server: &str,
+        llama_server: &Path,
         gguf: &Path,
         port: u16,
         log_file: &Path,
@@ -60,7 +60,7 @@ impl LlamaServer {
             .stdout(Stdio::from(log.try_clone()?))
             .stderr(Stdio::from(log))
             .spawn()
-            .with_context(|| format!("failed to spawn {}", llama_server))?;
+            .with_context(|| format!("failed to spawn {}", llama_server.display()))?;
 
         let mut server = Self { child, port };
         match server.wait_model_meta().await {

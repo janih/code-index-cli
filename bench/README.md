@@ -24,6 +24,26 @@ writes `bench/results/<corpus>/<model>.json`, cleans up (`--keep` to
 retain collections), and finally analyzes every corpus. Results persist,
 so `analyze` re-computes metrics without touching any server.
 
+### Machine-specific paths (per user, not committed)
+
+`bench/models.json` is committed and stays portable: `gguf` entries are
+bare filenames and `llamaServer` is omitted. Configure your machine in
+`bench/models.local.json` (gitignored, auto-loaded when present):
+
+```json
+{
+  "llamaServer": "/path/to/llama-server",
+  "modelsDir": "/path/to/your/ggufs"
+}
+```
+
+- `llamaServer`: when not configured anywhere, `llama-server` is looked
+  up on `$PATH` (e.g. a brew install works with no local file at all).
+- `modelsDir`: directory bare `gguf` filenames resolve against;
+  absolute gguf paths in `models.json` are used as-is.
+
+`analyze` and `clean` never need these paths — only `run` starts servers.
+
 ### Corpora
 
 | Corpus | What | Why |
@@ -40,7 +60,8 @@ so golden files cannot answer their own queries), `worktreeBranch`
 
 | Path | Committed | Contents |
 |---|---|---|
-| `bench/models.json` | yes | llama-server path, corpora + model registry (GGUF, `modelId`, optional `queryPrefix`, `baseline`) |
+| `bench/models.json` | yes | corpora + model registry (portable: bare `gguf` filenames, `modelId`, optional `queryPrefix`, `baseline`) |
+| `bench/models.local.json` | **no** | machine paths: `llamaServer`, `modelsDir` |
 | `bench/golden/<corpus>.jsonl` | yes | labeled query sets — the core asset |
 | `bench/results/`, `bench/reports/`, `bench/tmp/`, `bench/ws-*` | no | run artifacts (gitignored) |
 

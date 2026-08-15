@@ -1,5 +1,4 @@
 {
-  "llamaServer": "/Users/janihalinen/projektit/llama.cpp/build/bin/llama-server",
   "corpora": [
     {
       "name": "code-index-cli",
@@ -15,57 +14,57 @@
   "models": [
     {
       "name": "embeddinggemma-300M-Q8",
-      "gguf": "/Users/janihalinen/projektit/qdrant/unsloth_embeddinggemma-300M-Q8_0.gguf",
+      "gguf": "unsloth_embeddinggemma-300M-Q8_0.gguf",
       "modelId": "unsloth_embeddinggemma-300M-Q8_0",
       "baseline": true
     },
     {
       "name": "embeddinggemma-300M-Q8+task",
-      "gguf": "/Users/janihalinen/projektit/qdrant/unsloth_embeddinggemma-300M-Q8_0.gguf",
+      "gguf": "unsloth_embeddinggemma-300M-Q8_0.gguf",
       "modelId": "unsloth_embeddinggemma-300M-Q8_0",
       "queryPrefix": "task: search result | query: "
     },
     {
       "name": "granite-embedding-311M-r2-Q8",
-      "gguf": "/Users/janihalinen/projektit/qdrant/granite-embedding-311M-multilingual-r2-Q8_0.gguf"
+      "gguf": "granite-embedding-311M-multilingual-r2-Q8_0.gguf"
     },
     {
       "name": "Qwen3-Embedding-0.6B-Q8",
-      "gguf": "/Users/janihalinen/projektit/qdrant/Qwen3-Embedding-0.6B.Q8_0.gguf",
+      "gguf": "Qwen3-Embedding-0.6B.Q8_0.gguf",
       "modelId": "Qwen3-Embedding-0.6B"
     },
     {
       "name": "Qwen3-Embedding-0.6B-Q8+instruct",
-      "gguf": "/Users/janihalinen/projektit/qdrant/Qwen3-Embedding-0.6B.Q8_0.gguf",
+      "gguf": "Qwen3-Embedding-0.6B.Q8_0.gguf",
       "modelId": "Qwen3-Embedding-0.6B",
       "queryPrefix": "Instruct: Given a code search query, retrieve relevant source code\nQuery: "
     },
     {
       "name": "Qwen3-Embedding-4B-Q8",
-      "gguf": "/Users/janihalinen/projektit/qdrant/Qwen3-Embedding-4B.Q8_0.gguf",
+      "gguf": "Qwen3-Embedding-4B.Q8_0.gguf",
       "modelId": "Qwen3-Embedding-4B"
     },
     {
       "name": "Qwen3-Embedding-8B-Q8",
-      "gguf": "/Users/janihalinen/projektit/qdrant/Qwen3-Embedding-8B.Q8_0.gguf",
+      "gguf": "Qwen3-Embedding-8B.Q8_0.gguf",
       "modelId": "Qwen3-Embedding-8B"
     },
     {
       "name": "Qwen3-VL-Embedding-2B-Q8",
-      "gguf": "/Users/janihalinen/projektit/qdrant/Qwen3-VL-Embedding-2B.Q8_0.gguf"
+      "gguf": "Qwen3-VL-Embedding-2B.Q8_0.gguf"
     },
     {
       "name": "Nemotron-3-Embed-1B-Q4KM",
-      "gguf": "/Users/janihalinen/projektit/qdrant/nemotron-3-embed-1b-q4_k_m.gguf"
+      "gguf": "nemotron-3-embed-1b-q4_k_m.gguf"
     },
     {
       "name": "Nemotron-3-Embed-1B-Q4KM+q",
-      "gguf": "/Users/janihalinen/projektit/qdrant/nemotron-3-embed-1b-q4_k_m.gguf",
+      "gguf": "nemotron-3-embed-1b-q4_k_m.gguf",
       "queryPrefix": "query: "
     },
     {
       "name": "Nemotron-3-Embed-8B-Q8",
-      "gguf": "/Users/janihalinen/projektit/qdrant/Nemotron-3-Embed-8B-Q8_0.gguf"
+      "gguf": "Nemotron-3-Embed-8B-Q8_0.gguf"
     }
   ]
 }
