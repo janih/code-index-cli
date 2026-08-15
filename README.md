@@ -75,6 +75,13 @@ Provider support matrix:
 
 Unknown models need `embedder.modelDimension` in the config.
 
+**llama-server tip:** start it with `--ubatch-size 4096` (and `--batch-size
+8192`). The default physical batch (512 tokens) silently fails whole
+embedding batches when the indexed repo contains very long single lines
+(e.g. minified JSON/JS or `package-lock.json`) — `code-index` logs
+`Error processing batch: … increase the physical batch size` and skips
+those files.
+
 ## Data locations
 
 - Qdrant collection per workspace: `ws-<sha256(path)[..16]>`

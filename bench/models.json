@@ -1,0 +1,70 @@
+{
+  "corpora": [
+    {
+      "name": "code-index-cli",
+      "root": ".",
+      "exclude": ["bench/", "/.code-index.json"]
+    },
+    {
+      "name": "ts-reference",
+      "root": "bench/tmp/ts-reference",
+      "worktreeBranch": "first-version-build"
+    }
+  ],
+  "models": [
+    {
+      "name": "embeddinggemma-300M-Q8",
+      "gguf": "unsloth_embeddinggemma-300M-Q8_0.gguf",
+      "modelId": "unsloth_embeddinggemma-300M-Q8_0",
+      "baseline": true
+    },
+    {
+      "name": "embeddinggemma-300M-Q8+task",
+      "gguf": "unsloth_embeddinggemma-300M-Q8_0.gguf",
+      "modelId": "unsloth_embeddinggemma-300M-Q8_0",
+      "queryPrefix": "task: search result | query: "
+    },
+    {
+      "name": "granite-embedding-311M-r2-Q8",
+      "gguf": "granite-embedding-311M-multilingual-r2-Q8_0.gguf"
+    },
+    {
+      "name": "Qwen3-Embedding-0.6B-Q8",
+      "gguf": "Qwen3-Embedding-0.6B.Q8_0.gguf",
+      "modelId": "Qwen3-Embedding-0.6B"
+    },
+    {
+      "name": "Qwen3-Embedding-0.6B-Q8+instruct",
+      "gguf": "Qwen3-Embedding-0.6B.Q8_0.gguf",
+      "modelId": "Qwen3-Embedding-0.6B",
+      "queryPrefix": "Instruct: Given a code search query, retrieve relevant source code\nQuery: "
+    },
+    {
+      "name": "Qwen3-Embedding-4B-Q8",
+      "gguf": "Qwen3-Embedding-4B.Q8_0.gguf",
+      "modelId": "Qwen3-Embedding-4B"
+    },
+    {
+      "name": "Qwen3-Embedding-8B-Q8",
+      "gguf": "Qwen3-Embedding-8B.Q8_0.gguf",
+      "modelId": "Qwen3-Embedding-8B"
+    },
+    {
+      "name": "Qwen3-VL-Embedding-2B-Q8",
+      "gguf": "Qwen3-VL-Embedding-2B.Q8_0.gguf"
+    },
+    {
+      "name": "Nemotron-3-Embed-1B-Q4KM",
+      "gguf": "nemotron-3-embed-1b-q4_k_m.gguf"
+    },
+    {
+      "name": "Nemotron-3-Embed-1B-Q4KM+q",
+      "gguf": "nemotron-3-embed-1b-q4_k_m.gguf",
+      "queryPrefix": "query: "
+    },
+    {
+      "name": "Nemotron-3-Embed-8B-Q8",
+      "gguf": "Nemotron-3-Embed-8B-Q8_0.gguf"
+    }
+  ]
+}

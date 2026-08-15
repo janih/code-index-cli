@@ -135,7 +135,7 @@ impl SearchService {
 /// given, so CWD-based resolution silently matched nothing (found during
 /// live verification of `--directory`, review round 1). Lexical
 /// normalization only (collapses `.` / `..`), like Node's path.resolve.
-fn normalize_directory_prefix(directory_prefix: &str, base: &Path) -> String {
+pub fn normalize_directory_prefix(directory_prefix: &str, base: &Path) -> String {
     let path = Path::new(directory_prefix);
     let resolved = if path.is_absolute() {
         path.to_path_buf()

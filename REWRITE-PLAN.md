@@ -96,6 +96,15 @@ Deviations found during the port (agreed as TS-gap mirrors):
   constant). `indexing.includeExtensions` remains accepted-but-inert in
   BOTH versions — documented gap: wiring it means teaching the parser
   about custom extensions too, deferred.
+- (benchmark M3) embeddinggemma-300M and Qwen3-Embedding-0.6B gained
+  query prefixes + per-model score thresholds (0.55) in the
+  openai-compatible profile table, sourced from the search-quality
+  benchmark (bench/ + examples/search_quality): query-side prefixes
+  lifted R@1 0.862->0.931 / 0.862->0.897 on the 29-query eval split;
+  documents stay embedded raw. Deviation from TS (which ships no such
+  profiles for these models) — the mechanism (query_prefix +
+  score_threshold in model profiles) is pre-existing TS behavior via
+  nomic-embed-code.
 - (review round 1, docs) `estimate_tokens` counts bytes where TS counts
   UTF-16 code units: non-ASCII token estimates run higher, so batches
   pack slightly smaller. Boundary-level difference only.

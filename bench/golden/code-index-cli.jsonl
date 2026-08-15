@@ -1,0 +1,39 @@
+{"id":"q01","query":"how do I configure a custom ollama server URL for embeddings","category":"config","relevant":{"src/config/schema.rs":2,"src/core/service_factory.rs":1,"src/embedders/ollama.rs":1}}
+{"id":"q02","query":"which environment variables override the config file","category":"config","relevant":{"src/config/loader.rs":2,"README.md":1}}
+{"id":"q03","query":"how is the search minimum score threshold determined per model","category":"search","relevant":{"src/config/manager.rs":2,"src/shared/embedding_models.rs":1}}
+{"id":"q04","query":"how do I change the batch size for indexing","category":"config","split":"dev","relevant":{"src/config/schema.rs":2,"src/cli.rs":1}}
+{"id":"q05","query":"where is the qdrant collection name for a workspace computed","category":"qdrant","relevant":{"src/vector_store/qdrant.rs":2}}
+{"id":"q06","query":"how does watch mode debounce file system events","category":"behavior","relevant":{"src/processors/watcher.rs":2,"src/commands/mod.rs":1}}
+{"id":"q07","query":"what happens when a file exceeds the maximum file size","category":"behavior","relevant":{"src/processors/scanner.rs":2,"src/processors/watcher.rs":1}}
+{"id":"q08","query":"how does the tool avoid re-embedding unchanged files","category":"cache","relevant":{"src/processors/scanner.rs":2,"src/cache/manager.rs":1,"src/processors/watcher.rs":1}}
+{"id":"q09","query":"where is estimate_tokens defined","category":"symbol","split":"dev","relevant":{"src/embedders/openai.rs":2}}
+{"id":"q10","query":"function that computes deterministic point ids for code blocks","category":"symbol","relevant":{"src/processors/scanner.rs":2}}
+{"id":"q11","query":"where is the gitignore matcher built from exclude patterns","category":"symbol","relevant":{"src/core/service_factory.rs":2}}
+{"id":"q12","query":"where does sanitize_error_message redact api keys","category":"symbol","relevant":{"src/shared/validation.rs":2}}
+{"id":"q13","query":"where is the cancellation token used to stop indexing","category":"symbol","relevant":{"src/core/orchestrator.rs":2,"src/shared/cancellation.rs":1}}
+{"id":"q14","query":"what http status codes trigger a retry for embeddings","category":"behavior","relevant":{"src/embedders/openai.rs":2}}
+{"id":"q15","query":"what happens when the embedder returns fewer embeddings than texts","category":"behavior","relevant":{"src/processors/scanner.rs":2,"src/processors/watcher.rs":1}}
+{"id":"q16","query":"how are markdown files split into chunks","category":"behavior","split":"dev","relevant":{"src/processors/parser.rs":2}}
+{"id":"q17","query":"how are relative directory prefixes resolved for search filtering","category":"search","relevant":{"src/core/search_service.rs":2}}
+{"id":"q18","query":"which directories are always skipped during scanning","category":"behavior","relevant":{"src/processors/scanner.rs":2}}
+{"id":"q19","query":"when is the vector collection recreated","category":"qdrant","relevant":{"src/vector_store/qdrant.rs":2}}
+{"id":"q20","query":"what does the clear command delete","category":"usage","relevant":{"src/commands/mod.rs":2,"src/core/orchestrator.rs":1,"README.md":1}}
+{"id":"q21","query":"how does indexing recover after an error mid-scan","category":"behavior","relevant":{"src/core/orchestrator.rs":2,"REWRITE-PLAN.md":1}}
+{"id":"q22","query":"when are stale points deleted before upserting new blocks","category":"behavior","split":"dev","relevant":{"src/processors/scanner.rs":2}}
+{"id":"q23","query":"how is ctrl c handled in watch mode","category":"behavior","relevant":{"src/commands/mod.rs":2,"src/core/orchestrator.rs":1,"REWRITE-PLAN.md":1}}
+{"id":"q24","query":"in what order are config layers merged","category":"config","relevant":{"src/config/loader.rs":2,"README.md":1}}
+{"id":"q25","query":"which config file names are discovered in the workspace","category":"config","relevant":{"src/config/loader.rs":2}}
+{"id":"q26","query":"how are environment variable strings converted to typed config values","category":"config","relevant":{"src/config/loader.rs":2}}
+{"id":"q27","query":"how many files are parsed concurrently during scanning","category":"concurrency","relevant":{"src/processors/scanner.rs":2,"src/shared/constants.rs":1}}
+{"id":"q28","query":"how is backpressure applied to pending embedding batches","category":"concurrency","relevant":{"src/processors/scanner.rs":2}}
+{"id":"q29","query":"where is the file hash cache persisted on disk","category":"cache","relevant":{"src/cache/manager.rs":2}}
+{"id":"q30","query":"how is the cache write debounced","category":"cache","split":"dev","relevant":{"src/cache/manager.rs":2}}
+{"id":"q31","query":"what payload fields are stored with each indexed block","category":"qdrant","relevant":{"src/processors/scanner.rs":2,"src/traits.rs":1}}
+{"id":"q32","query":"what hnsw parameters are used when creating a collection","category":"qdrant","relevant":{"src/vector_store/qdrant.rs":2}}
+{"id":"q33","query":"how are search results filtered client side after the vector query","category":"search","split":"dev","relevant":{"src/core/search_service.rs":2,"src/vector_store/qdrant.rs":1}}
+{"id":"q34","query":"how is indexing progress reported to the user","category":"usage","relevant":{"src/core/state_manager.rs":2,"src/commands/mod.rs":1}}
+{"id":"q35","query":"where is the query prefix for nomic embed code applied","category":"search","relevant":{"src/embedders/openai.rs":2,"src/embedders/ollama.rs":1}}
+{"id":"q36","query":"retry and backoff behavior for embedding requests","category":"search","directory":"src/embedders","relevant":{"src/embedders/openai.rs":2,"src/embedders/openai_compatible.rs":1}}
+{"id":"q37","query":"schema validation rules for the config file","category":"config","directory":"src/config","relevant":{"src/config/schema.rs":2,"src/config/loader.rs":1}}
+{"id":"q38","query":"how files are walked and filtered during a scan","category":"behavior","directory":"src/processors","relevant":{"src/processors/scanner.rs":2,"src/processors/parser.rs":1}}
+{"id":"q39","query":"state transitions while indexing runs","category":"usage","directory":"src/core","relevant":{"src/core/state_manager.rs":2,"src/core/orchestrator.rs":1}}

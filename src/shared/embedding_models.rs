@@ -104,6 +104,28 @@ const NOMIC_EMBED_CODE_PROFILE: ModelProfile = ModelProfile {
     query_prefix: Some(NOMIC_EMBED_CODE_QUERY_PREFIX),
 };
 
+// embeddinggemma task/query template (model card; verified in the
+// search-quality benchmark — query-side only, documents stay raw).
+const EMBEDDINGGEMMA_QUERY_PREFIX: &str = "task: search result | query: ";
+const fn embeddinggemma_profile(dimension: usize, threshold: f64) -> ModelProfile {
+    ModelProfile {
+        dimension,
+        score_threshold: threshold,
+        query_prefix: Some(EMBEDDINGGEMMA_QUERY_PREFIX),
+    }
+}
+
+// Qwen3-Embedding instruction format (model card; benchmark-verified).
+const QWEN3_QUERY_PREFIX: &str =
+    "Instruct: Given a code search query, retrieve relevant source code\nQuery: ";
+const fn qwen3_profile(dimension: usize, threshold: f64) -> ModelProfile {
+    ModelProfile {
+        dimension,
+        score_threshold: threshold,
+        query_prefix: Some(QWEN3_QUERY_PREFIX),
+    }
+}
+
 const OPENAI_MODELS: &[(&str, ModelProfile)] = &[
     ("text-embedding-3-small", profile(1536, 0.4)),
     ("text-embedding-3-large", profile(3072, 0.4)),
@@ -122,6 +144,12 @@ const OPENAI_COMPATIBLE_MODELS: &[(&str, ModelProfile)] = &[
     ("text-embedding-3-large", profile(3072, 0.4)),
     ("text-embedding-ada-002", profile(1536, 0.4)),
     ("nomic-embed-code", NOMIC_EMBED_CODE_PROFILE),
+    (
+        "unsloth_embeddinggemma-300M-Q8_0",
+        embeddinggemma_profile(768, 0.55),
+    ),
+    ("embeddinggemma-300M", embeddinggemma_profile(768, 0.55)),
+    ("Qwen3-Embedding-0.6B", qwen3_profile(1024, 0.55)),
 ];
 
 const GEMINI_MODELS: &[(&str, ModelProfile)] = &[
@@ -243,6 +271,69 @@ mod tests {
         let prefix = get_model_query_prefix(EmbedderProvider::Ollama, "nomic-embed-code");
         assert!(prefix.is_some());
         assert!(prefix.unwrap().contains("Represent this query"));
+    }
+
+    #[test]
+    fn embeddinggemma_profile_has_task_prefix_and_threshold() {
+        // Benchmark-verified (M2): task/query prefix lifts R@1 0.862 -> 0.931
+        // on the search-quality golden set; dev-split threshold 0.55.
+        for model_id in ["unsloth_embeddinggemma-300M-Q8_0", "embeddinggemma-300M"] {
+            let provider = EmbedderProvider::OpenAiCompatible;
+            assert_eq!(
+                get_model_dimension(provider, model_id),
+                Some(768),
+                "{model_id}"
+            );
+            assert_eq!(get_model_score_threshold(provider, model_id), Some(0.55));
+            let prefix = get_model_query_prefix(provider, model_id)
+                .unwrap_or_else(|| panic!("{model_id} has no query prefix"));
+            assert!(prefix.starts_with("task: search result | query: "));
+        }
+        // Unknown gemma ids (other sizes/quantizations) stay profile-free
+        assert_eq!(
+            get_model_dimension(EmbedderProvider::OpenAiCompatible, "embeddinggemma-100M"),
+            None
+        );
+    }
+
+    #[test]
+    fn qwen3_embedding_profile_has_instruct_prefix() {
+        // Benchmark-verified (M2): Instruct/Query prefix lifts R@1
+        // 0.862 -> 0.897; dev-split threshold 0.55.
+        let provider = EmbedderProvider::OpenAiCompatible;
+        assert_eq!(
+            get_model_dimension(provider, "Qwen3-Embedding-0.6B"),
+            Some(1024)
+        );
+        assert_eq!(
+            get_model_score_threshold(provider, "Qwen3-Embedding-0.6B"),
+            Some(0.55)
+        );
+        let prefix = get_model_query_prefix(provider, "Qwen3-Embedding-0.6B").unwrap();
+        assert!(prefix.starts_with("Instruct: "));
+        assert!(prefix.ends_with("Query: "));
+    }
+
+    #[test]
+    fn document_side_never_gets_prefix() {
+        // is_query=false must return texts untouched for every prefixed model
+        // (nomic-embed-code, embeddinggemma, Qwen3) — the benchmark condition
+        // that produced the measured wins keeps holding.
+        let texts = vec!["fn main() {}".to_string()];
+        for (provider, model) in [
+            (EmbedderProvider::Ollama, "nomic-embed-code"),
+            (
+                EmbedderProvider::OpenAiCompatible,
+                "unsloth_embeddinggemma-300M-Q8_0",
+            ),
+            (EmbedderProvider::OpenAiCompatible, "Qwen3-Embedding-0.6B"),
+        ] {
+            assert_eq!(
+                crate::embedders::openai::apply_query_prefix(provider, model, &texts, false),
+                texts,
+                "{model} document side must stay raw"
+            );
+        }
     }
 
     #[test]
