@@ -92,7 +92,15 @@ Riskiest integration first: real embedder → real Qdrant round trip.
 
 **Acceptance:** against a local Qdrant (`docker run -p 6333:6333 qdrant/qdrant`), `code-index index` then `code-index search -q ...` returns results for a sample repo with an OpenAI-compatible endpoint.
 
-### Phase 2 — Remaining providers + `status`/`clear`
+### Phase 2 — Remaining providers + `status`/`clear` ✅
+
+Status (done): all non-AWS providers ported (ollama, openai-compatible,
+gemini, mistral, vercel-ai-gateway, openrouter); status/clear live.
+**Bedrock deferred** (needs hand-rolled SigV4 or aws-sdk — user
+deprioritized). Live-tested providers can only be E2E'd with real keys;
+openai-compatible was E2E'd against llama-server + local Qdrant,
+including the scanner ordering fix (delete-before-upsert wipe bug —
+deviation from a latent TS bug).
 
 - [ ] ollama, gemini, mistral, openai-compatible, vercel-ai-gateway, openrouter (~shared base each)
 - [ ] `bedrock` behind `--features bedrock`
@@ -101,7 +109,13 @@ Riskiest integration first: real embedder → real Qdrant round trip.
 
 **Acceptance:** provider matrix tests pass; `status`/`clear` behave like TS.
 
-### Phase 3 — `watch`
+### Phase 3 — `watch` ✅
+
+Status (done): notify-based watcher, 500ms debounced batches, macOS
+FSEvents fixed (path rebasing + gone-file promote-to-delete), graceful
+Ctrl+C shutdown; verified live. Known parity gap (same in TS): files
+deleted while the CLI is idle are not purged from the index on next
+startup — use `clear` + fresh `index` to reset.
 
 - [ ] `processors/watcher.rs` on `notify`, debounce, incremental reindex, deletes
 - [ ] `commands/watch.rs`, Ctrl-C graceful stop (state: Stopping)
