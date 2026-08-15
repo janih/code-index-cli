@@ -56,7 +56,24 @@ Each phase ends in a working, committed state. Commits are atomic per AGENTS.md 
 
 **Acceptance:** `code-index --help` lists init/index/search/watch/status/clear with TS-equivalent flags. ✅ (635 KB release binary)
 
-### Phase 1 — Vertical slice: `index` + `search` work for OpenAI
+### Phase 1 — Vertical slice: `index` + `search` work for OpenAI ✅
+
+Status (done): layered config, traits (Embedder/VectorStore/CodeParser/
+CacheManager), Qdrant REST store, OpenAI embedder (batching+retry), line/
+markdown parser, scanner pipeline (buffer_unordered + JoinSet + Semaphore),
+cache with debounced persistence, StateManager, ServiceFactory,
+Orchestrator, SearchService — all six commands wired; watch/init-prompts
+deferred as planned. 118 unit tests green, release binary ~4.2 MB.
+Pending within this phase: live E2E against real Qdrant + OpenAI key
+(needs those services; can also be verified via Ollama after Phase 2
+brings that provider in).
+
+Deviations found during the port (agreed as TS-gap mirrors):
+- `--dry-run` is accepted but was never wired into the TS pipeline;
+  the Rust port logs a warning instead of pretending it works.
+- Chunk sizing counts bytes where JS counted UTF-16 code units
+  (equal for ASCII; slight boundary differences for non-ASCII).
+
 
 Riskiest integration first: real embedder → real Qdrant round trip.
 
