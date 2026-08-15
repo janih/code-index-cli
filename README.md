@@ -5,8 +5,9 @@ answers semantic search queries, as a single small binary (≈4 MB, cold start i
 milliseconds — no Node.js or any runtime required).
 
 This is a Rust rewrite of the original Node.js version (kept on the
-`first-version-build` branch). See `REWRITE-PLAN.md` for the porting status,
-parities and documented deviations.
+`first-version-build` branch). The port is complete (v0.2.x); intentional
+behavioral differences from the original are documented in the
+**Deviations** section of `AGENTS.md`.
 
 ## Requirements
 

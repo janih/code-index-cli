@@ -198,15 +198,15 @@ impl DirectoryScanner {
                         // Delete stale points for this file BEFORE queueing
                         // its new blocks. The TS code deleted after upserting
                         // (wiping the fresh points); delete-first keeps the
-                        // index consistent — see REWRITE-PLAN deviations.
+                        // index consistent — see AGENTS.md deviations.
                         //
                         // Skipped when the file has no cached hash: a
                         // never-indexed file has no stale points, and the
                         // unconditional delete cost one HTTP round-trip per
                         // file on every initial scan. Cache and collection
                         // are created/cleared together, so a missing hash
-                        // implies missing points — see the REWRITE-PLAN
-                        // caveat about lost cache files.
+                        // implies missing points — see the AGENTS.md
+                        // deviations caveat about lost cache files.
                         if self.cache_manager.get_hash(&file_path).is_some() {
                             if let Err(err) = self
                                 .vector_store

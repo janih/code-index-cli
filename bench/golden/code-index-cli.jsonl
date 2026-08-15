@@ -18,9 +18,9 @@
 {"id":"q18","query":"which directories are always skipped during scanning","category":"behavior","relevant":{"src/processors/scanner.rs":2}}
 {"id":"q19","query":"when is the vector collection recreated","category":"qdrant","relevant":{"src/vector_store/qdrant.rs":2}}
 {"id":"q20","query":"what does the clear command delete","category":"usage","relevant":{"src/commands/mod.rs":2,"src/core/orchestrator.rs":1,"README.md":1}}
-{"id":"q21","query":"how does indexing recover after an error mid-scan","category":"behavior","relevant":{"src/core/orchestrator.rs":2,"REWRITE-PLAN.md":1}}
+{"id":"q21","query":"how does indexing recover after an error mid-scan","category":"behavior","relevant":{"src/core/orchestrator.rs":2}}
 {"id":"q22","query":"when are stale points deleted before upserting new blocks","category":"behavior","split":"dev","relevant":{"src/processors/scanner.rs":2}}
-{"id":"q23","query":"how is ctrl c handled in watch mode","category":"behavior","relevant":{"src/commands/mod.rs":2,"src/core/orchestrator.rs":1,"REWRITE-PLAN.md":1}}
+{"id":"q23","query":"how is ctrl c handled in watch mode","category":"behavior","relevant":{"src/commands/mod.rs":2,"src/core/orchestrator.rs":1}}
 {"id":"q24","query":"in what order are config layers merged","category":"config","relevant":{"src/config/loader.rs":2,"README.md":1}}
 {"id":"q25","query":"which config file names are discovered in the workspace","category":"config","relevant":{"src/config/loader.rs":2}}
 {"id":"q26","query":"how are environment variable strings converted to typed config values","category":"config","relevant":{"src/config/loader.rs":2}}
