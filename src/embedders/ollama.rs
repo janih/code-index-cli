@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 
 use crate::shared::embedding_models::EmbedderProvider;
+use crate::shared::validation::sanitize_error_message;
 use crate::traits::{Embedder, EmbedderInfo, EmbeddingResponse, EmbeddingUsage, ValidationResult};
 
 use super::openai::apply_query_prefix;
@@ -52,7 +53,11 @@ impl OllamaEmbedder {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Ollama request failed ({}): {}", status, body);
+            anyhow::bail!(
+                "Ollama request failed ({}): {}",
+                status,
+                sanitize_error_message(&body)
+            );
         }
 
         let body: serde_json::Value = response.json().await?;

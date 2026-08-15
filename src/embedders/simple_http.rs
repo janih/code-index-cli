@@ -9,6 +9,7 @@
 use async_trait::async_trait;
 
 use crate::shared::embedding_models::EmbedderProvider;
+use crate::shared::validation::sanitize_error_message;
 use crate::traits::{Embedder, EmbedderInfo, EmbeddingResponse, ValidationResult};
 
 use super::openai::parse_openai_response;
@@ -112,10 +113,21 @@ impl SimpleHttpEmbedder {
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("{} error ({}): {}", self.error_label, status, body);
+            anyhow::bail!(
+                "{}",
+                sanitize_error_message(&format!(
+                    "{} error ({}): {}",
+                    self.error_label, status, body
+                ))
+            );
         }
 
-        let body: serde_json::Value = response.json().await?;
+        let body: serde_json::Value = response.json().await.map_err(|err| {
+            anyhow::anyhow!(
+                "Invalid response body: {}",
+                sanitize_error_message(&err.to_string())
+            )
+        })?;
         let parsed = parse_openai_response(&body);
         Ok(EmbeddingResponse {
             embeddings: parsed.embeddings,
@@ -142,7 +154,7 @@ impl Embedder for SimpleHttpEmbedder {
             .await
         {
             Ok(_) => ValidationResult::ok(),
-            Err(err) => ValidationResult::invalid(err.to_string()),
+            Err(err) => ValidationResult::invalid(sanitize_error_message(&err.to_string())),
         }
     }
 

@@ -152,10 +152,10 @@ startup — use `clear` + fresh `index` to reset.
   (loader tests cover layering + string coercion)
 - [x] Unknown model → `embedder.modelDimension` fallback
   (factory tests: fallback used, error when absent)
-- [~] Error messages redact API keys — helper ported
-  (`shared/validation.rs`) BUT: the TS version never wires it into any
-  command/embedder either (only own tests). Honest parity = unused in
-  both. Improvement candidate, not a deviation.
+- [x] Error messages redact API keys — helper ported AND wired into all
+  embedder error paths (review round 1). Deviation from TS, which never
+  wires its own helper: provider error bodies / network errors are passed
+  through `sanitize_error_message` before surfacing.
 - [x] Block limits: 50/1000/1.15/200 (const-asserted; parser tests)
 - [x] Search defaults: limit 50 (schema bounds 10..200), min score 0.4
   (schema-validated, load fails on violation — zod parity)

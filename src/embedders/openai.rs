@@ -11,6 +11,7 @@ use crate::shared::constants::{
     INITIAL_RETRY_DELAY_MS, MAX_BATCH_RETRIES, MAX_BATCH_TOKENS, MAX_ITEM_TOKENS,
 };
 use crate::shared::embedding_models::{get_model_query_prefix, EmbedderProvider};
+use crate::shared::validation::sanitize_error_message;
 use crate::traits::{Embedder, EmbedderInfo, EmbeddingResponse, EmbeddingUsage, ValidationResult};
 
 const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
@@ -122,7 +123,7 @@ where
                     tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
                     retries_left -= 1;
                 } else {
-                    anyhow::bail!(message);
+                    anyhow::bail!(sanitize_error_message(&message));
                 }
             }
         }
@@ -167,20 +168,19 @@ impl OpenAiEmbedder {
             .json(&serde_json::json!({ "model": model, "input": batch }))
             .send()
             .await
-            .map_err(|err| (None, err.to_string()))?;
+            .map_err(|err| (None, sanitize_error_message(&err.to_string())))?;
 
         let status = response.status().as_u16();
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|err| (Some(status), format!("Invalid response body: {err}")))?;
+        let body: serde_json::Value = response.json().await.map_err(|err| {
+            (
+                Some(status),
+                sanitize_error_message(&format!("Invalid response body: {err}")),
+            )
+        })?;
 
         if !response_status_ok(status) {
-            let message = body["error"]["message"]
-                .as_str()
-                .unwrap_or("Unknown error")
-                .to_string();
-            return Err((Some(status), message));
+            let message = body["error"]["message"].as_str().unwrap_or("Unknown error");
+            return Err((Some(status), sanitize_error_message(message)));
         }
 
         Ok(parse_openai_response(&body))
@@ -285,9 +285,9 @@ impl Embedder for OpenAiEmbedder {
                     .ok()
                     .and_then(|body| body["error"]["message"].as_str().map(String::from))
                     .unwrap_or_else(|| "Validation failed".to_string());
-                ValidationResult::invalid(message)
+                ValidationResult::invalid(sanitize_error_message(&message))
             }
-            Err(err) => ValidationResult::invalid(err.to_string()),
+            Err(err) => ValidationResult::invalid(sanitize_error_message(&err.to_string())),
         }
     }
 
@@ -382,5 +382,23 @@ mod tests {
         assert_eq!(batches.len(), 1);
         assert_eq!(batches[0].len(), 1);
         assert!(!batches[0][0].contains('y'));
+    }
+
+    #[tokio::test]
+    async fn non_retryable_errors_are_sanitized() {
+        // 400 is not retryable -> immediate bail; the message must not echo
+        // key-shaped strings (review #18 wiring).
+        let secret = "sk-abcdefghijklmnopqrstuvwxyz123456";
+        let err = match call_embeddings_with_retry(|| async {
+            Err::<EmbeddingBatchResponse, _>((Some(400u16), format!("bad key {secret}")))
+        })
+        .await
+        {
+            Ok(_) => panic!("expected the non-retryable call to fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(message.contains("***REDACTED***"), "message: {message}");
+        assert!(!message.contains(secret));
     }
 }
