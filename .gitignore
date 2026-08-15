@@ -1,0 +1,8 @@
+/target
+
+# Leftovers from the TS reference checkout and local tooling
+node_modules/
+dist/
+.idea/
+.vscode/
+*.log
