@@ -1,0 +1,22 @@
+{
+  "llamaServer": "/Users/janihalinen/projektit/llama.cpp/build/bin/llama-server",
+  "models": [
+    {
+      "name": "embeddinggemma-300M-Q8",
+      "gguf": "/Users/janihalinen/projektit/qdrant/unsloth_embeddinggemma-300M-Q8_0.gguf",
+      "baseline": true
+    },
+    {
+      "name": "Qwen3-Embedding-0.6B-Q8",
+      "gguf": "/Users/janihalinen/projektit/qdrant/Qwen3-Embedding-0.6B.Q8_0.gguf"
+    },
+    {
+      "name": "Nemotron-3-Embed-1B-Q4KM",
+      "gguf": "/Users/janihalinen/projektit/qdrant/nemotron-3-embed-1b-q4_k_m.gguf"
+    },
+    {
+      "name": "Nemotron-3-Embed-8B-Q8",
+      "gguf": "/Users/janihalinen/projektit/qdrant/Nemotron-3-Embed-8B-Q8_0.gguf"
+    }
+  ]
+}
