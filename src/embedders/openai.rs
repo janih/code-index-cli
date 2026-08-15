@@ -183,40 +183,47 @@ impl OpenAiEmbedder {
             return Err((Some(status), message));
         }
 
-        let mut data: Vec<(usize, Vec<f32>)> = body["data"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|item| {
-                let index = item["index"].as_u64().unwrap_or(0) as usize;
-                let embedding = item["embedding"]
-                    .as_array()
-                    .map(|values| {
-                        values
-                            .iter()
-                            .filter_map(|v| v.as_f64().map(|f| f as f32))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                (index, embedding)
-            })
-            .collect();
-        data.sort_by_key(|(index, _)| *index);
+        Ok(parse_openai_response(&body))
+    }
+}
 
-        let usage = if body["usage"].is_object() {
-            Some(EmbeddingUsage {
-                prompt_tokens: body["usage"]["prompt_tokens"].as_u64().unwrap_or(0),
-                total_tokens: body["usage"]["total_tokens"].as_u64().unwrap_or(0),
-            })
-        } else {
-            None
-        };
-
-        Ok(EmbeddingBatchResponse {
-            embeddings: data.into_iter().map(|(_, embedding)| embedding).collect(),
-            usage,
+/// Parses the OpenAI-style embeddings response shape
+/// (`{data: [{embedding, index}], usage}`). Shared by the openai,
+/// openai-compatible, mistral, vercel and openrouter providers.
+pub(crate) fn parse_openai_response(body: &serde_json::Value) -> EmbeddingBatchResponse {
+    let mut data: Vec<(usize, Vec<f32>)> = body["data"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|item| {
+            let index = item["index"].as_u64().unwrap_or(0) as usize;
+            let embedding = item["embedding"]
+                .as_array()
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(|v| v.as_f64().map(|f| f as f32))
+                        .collect()
+                })
+                .unwrap_or_default();
+            (index, embedding)
         })
+        .collect();
+    data.sort_by_key(|(index, _)| *index);
+
+    let usage = if body["usage"].is_object() {
+        Some(EmbeddingUsage {
+            prompt_tokens: body["usage"]["prompt_tokens"].as_u64().unwrap_or(0),
+            total_tokens: body["usage"]["total_tokens"].as_u64().unwrap_or(0),
+        })
+    } else {
+        None
+    };
+
+    EmbeddingBatchResponse {
+        embeddings: data.into_iter().map(|(_, embedding)| embedding).collect(),
+        usage,
     }
 }
 

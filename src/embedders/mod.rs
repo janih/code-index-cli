@@ -4,5 +4,7 @@
 //! `reqwest`; provider-specific auth/payload shaping lives in each module.
 
 pub mod openai;
+pub mod openai_compatible;
 
 pub use openai::OpenAiEmbedder;
+pub use openai_compatible::OpenAiCompatibleEmbedder;

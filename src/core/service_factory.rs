@@ -9,7 +9,7 @@ use ignore::gitignore::GitignoreBuilder;
 
 use crate::cache::HashCacheManager;
 use crate::config::manager::ConfigManager;
-use crate::embedders::OpenAiEmbedder;
+use crate::embedders::{OpenAiCompatibleEmbedder, OpenAiEmbedder};
 use crate::log;
 use crate::processors::parser::LineCodeParser;
 use crate::processors::scanner::DirectoryScanner;
@@ -61,6 +61,19 @@ impl ServiceFactory {
 					)
 				})?;
                 Ok(Arc::new(OpenAiEmbedder::new(
+                    api_key.to_string(),
+                    config.model_id().map(String::from),
+                )))
+            }
+            EmbedderProvider::OpenAiCompatible => {
+                let base_url = config.compatible_base_url().ok_or_else(|| {
+                    anyhow::anyhow!("OpenAI Compatible base URL and API key are required.")
+                })?;
+                let api_key = config.compatible_api_key().ok_or_else(|| {
+                    anyhow::anyhow!("OpenAI Compatible base URL and API key are required.")
+                })?;
+                Ok(Arc::new(OpenAiCompatibleEmbedder::new(
+                    base_url.to_string(),
                     api_key.to_string(),
                     config.model_id().map(String::from),
                 )))
