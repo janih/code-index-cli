@@ -261,15 +261,172 @@ fn display_results(query: &str, results: &[VectorStoreSearchResult], limit: Opti
     }
 }
 
-/// `code-index watch` — implemented in Phase 3.
+/// `code-index watch`: index workspace, then watch for changes (TS `watch`).
 pub async fn watch(
-    _workspace: PathBuf,
-    _config_path: Option<PathBuf>,
-    _embedder: EmbedderArgs,
-    _qdrant: QdrantArgs,
-    _batch_size: Option<u32>,
+    workspace: PathBuf,
+    config_path: Option<PathBuf>,
+    embedder: EmbedderArgs,
+    qdrant: QdrantArgs,
+    batch_size: Option<u32>,
 ) -> anyhow::Result<()> {
-    anyhow::bail!("watch mode is not implemented yet in the Rust version (Phase 3)")
+    use std::collections::HashMap;
+
+    println!("👀 Starting codebase indexing with file watcher...");
+    println!("   Workspace: {}", workspace.display());
+
+    let flags = CliFlags {
+        provider: embedder.provider,
+        model_id: embedder.model_id,
+        api_key: embedder.api_key,
+        qdrant_url: qdrant.qdrant_url,
+        qdrant_api_key: qdrant.qdrant_api_key,
+        batch_size,
+        ..Default::default()
+    };
+    let config_manager = ConfigManager::new(load_config(
+        &workspace,
+        config_path.as_deref(),
+        Some(&flags),
+    )?);
+
+    if !config_manager.is_feature_configured() {
+        anyhow::bail!("Code index is not configured. Run 'code-index init' first.");
+    }
+
+    println!("   Provider: {}", config_manager.embedder_provider());
+    println!(
+        "   Model: {}",
+        config_manager.model_id().unwrap_or("(default)")
+    );
+    println!("   Qdrant: {}", config_manager.qdrant_url());
+    println!();
+
+    let cache_manager = Arc::new(HashCacheManager::new(&workspace, None));
+    cache_manager.initialize();
+
+    let state_manager = Arc::new(StateManager::new());
+    let factory = ServiceFactory::new(
+        config_manager.clone(),
+        workspace.clone(),
+        Arc::clone(&cache_manager),
+    );
+
+    println!("⏳ Validating embedder configuration...");
+    let embedder = factory.create_embedder()?;
+    let validation = factory.validate_embedder(embedder.as_ref()).await;
+    if !validation.valid {
+        anyhow::bail!(
+            "Embedder validation failed: {}",
+            validation.error.unwrap_or_default()
+        );
+    }
+    println!("✅ Embedder configuration valid");
+    println!();
+
+    // Progress reporting (TS watch.ts handler)
+    state_manager.on_progress_update(Box::new(|status| match status.system_status {
+        IndexingState::Indexing if status.total_items > 0 => {
+            let percent = status.processed_items * 100 / status.total_items.max(1);
+            print!(
+                "\r   Progress: {}/{} {} ({}%)",
+                status.processed_items, status.total_items, status.current_item_unit, percent
+            );
+        }
+        IndexingState::Indexed => println!("\n✅ {}", status.message),
+        _ => {}
+    }));
+
+    let orchestrator = factory.create_orchestrator(Arc::clone(&state_manager))?;
+    orchestrator.start_indexing().await?;
+
+    if orchestrator.state() == IndexingState::Error {
+        anyhow::bail!("Indexing failed");
+    }
+
+    println!("\n👀 Watching for file changes... (Press Ctrl+C to stop)");
+
+    // Wire the watcher onto the already-validated services
+    let vector_store = factory.create_vector_store()?;
+    let file_watcher = Arc::new(crate::processors::watcher::FileWatcher::new(
+        workspace.clone(),
+        Arc::clone(&cache_manager) as Arc<dyn CacheManager>,
+        Some(Arc::clone(&embedder)),
+        Some(vector_store),
+        factory.build_ignore_matcher()?,
+        Some(config_manager.batch_size().max(1) as usize),
+    ));
+    let (_keepalive, mut events) = file_watcher.start_notify_stream()?;
+
+    // Debounce loop: 500ms quiet window, reset per event (TS parity)
+    let debounce = std::time::Duration::from_millis(500);
+    let mut pending: HashMap<PathBuf, crate::processors::watcher::WatchEventType> = HashMap::new();
+    loop {
+        let next_deadline = (!pending.is_empty()).then(|| tokio::time::Instant::now() + debounce);
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                println!("\n⏳ Stopping...");
+                orchestrator.stop_indexing();
+                cache_manager.flush().await.ok();
+                println!("👋 Stopped.");
+                return Ok(());
+            }
+            event = events.recv() => {
+                let Some(event) = event else {
+                    anyhow::bail!("File watcher stream ended unexpectedly");
+                };
+                crate::log::debug(&format!("watch event: {:?} {:?}", event.kind, event.paths));
+                for (path, event_type) in file_watcher.classify_event(&event) {
+                    pending.insert(path, event_type);
+                }
+            }
+            _ = async {
+                match next_deadline {
+                    Some(deadline) => tokio::time::sleep_until(deadline).await,
+                    // No pending events: branch never completes (disabled)
+                    None => std::future::pending::<()>().await,
+                }
+            } => {
+                let batch = std::mem::take(&mut pending);
+                let watcher = Arc::clone(&file_watcher);
+                let sm = Arc::clone(&state_manager);
+                let summary = watcher
+                    .process_events(
+                        batch,
+                        Some(&|processed, total, path, _result| {
+                            let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+                            sm.report_file_queue_progress(processed, total, name.as_deref());
+                        }),
+                    )
+                    .await;
+                if let Some(err) = &summary.batch_error {
+                    crate::log::error(&format!("Batch processing failed: {err}"));
+                }
+                for file in &summary.processed_files {
+                    if file.status == crate::processors::watcher::FileStatus::Error {
+                        crate::log::error(&format!(
+                            "  {}: {}",
+                            file.path.display(),
+                            file.reason.as_deref().unwrap_or("unknown error")
+                        ));
+                    }
+                }
+                if summary.batch_error.is_none() {
+                    println!(
+                        "\n📝 {} files changed: {} updated, {} skipped, {} errors",
+                        summary.processed_files.len(),
+                        summary.success_count(),
+                        summary
+                            .processed_files
+                            .iter()
+                            .filter(|f| f.status == crate::processors::watcher::FileStatus::Skipped)
+                            .count(),
+                        summary.error_count(),
+                    );
+                }
+                cache_manager.flush().await.ok();
+            }
+        }
+    }
 }
 
 /// `code-index status`: show configuration and index status (TS `status`).
