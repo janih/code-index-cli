@@ -1,4 +1,4 @@
-//! Cooperative cancellation, replacing the TS `AbortSignal`.
+//! Cooperative cancellation token.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

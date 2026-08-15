@@ -1,7 +1,7 @@
 //! File watcher: debounced incremental reindexing.
 //!
-//! Port of `src/processors/file-watcher.ts`. chokidar becomes `notify`,
-//! the 500ms debounce and per-batch processing semantics are preserved.
+//! `notify` delivers events; the 500ms debounce and per-batch processing
+//! semantics apply on top.
 //!
 //! Note: `awaitWriteFinish` has no native equivalent — the hash-cache check
 //! plus subsequent change events converge the index to the settled content.
@@ -88,7 +88,7 @@ pub struct FileWatcher {
     #[allow(dead_code)]
     batch_segment_threshold: usize,
     /// Largest indexed file; honors `indexing.maxFileSizeBytes` (default
-    /// 1 MiB, the TS constant).
+    /// 1 MiB).
     max_file_size_bytes: u64,
 }
 
@@ -334,7 +334,7 @@ impl FileWatcher {
             }
 
             // Delete existing points for this file, then upsert (delete-first,
-            // consistent with the TS watcher — and with our fixed scanner)
+            // consistent with the scanner)
             vector_store.delete_points_by_file_path(&path_str).await?;
 
             let mut texts = Vec::new();

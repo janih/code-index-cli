@@ -1,6 +1,4 @@
 //! Embedding model profiles (dimensions, score thresholds, query prefixes).
-//!
-//! Port of `src/shared/embedding-models.ts` — data preserved 1:1.
 
 use std::fmt;
 
@@ -8,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Embedder providers supported by the CLI.
 ///
-/// Serde string forms are the TS config values (e.g. `"openai-compatible"`).
+/// Serde string forms match the config values (e.g. `"openai-compatible"`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EmbedderProvider {
     #[serde(rename = "openai")]
@@ -30,7 +28,7 @@ pub enum EmbedderProvider {
 }
 
 impl EmbedderProvider {
-    /// All providers that have model profiles (parity with the TS type union).
+    /// All providers that have model profiles.
     pub const ALL: &'static [EmbedderProvider] = &[
         Self::OpenAi,
         Self::Ollama,

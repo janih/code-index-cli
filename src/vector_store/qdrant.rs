@@ -1,7 +1,6 @@
 //! Qdrant vector store over the REST API.
 //!
-//! Port of `src/vector-store/qdrant-client.ts`. Instead of the official
-//! client we use plain HTTP via `reqwest` — the surface used here is small:
+//! Plain HTTP via `reqwest` — the surface used here is small:
 //! collection info/create/delete, payload indexes, point upsert/query/delete.
 
 use async_trait::async_trait;
@@ -28,7 +27,6 @@ pub struct QdrantVectorStore {
 }
 
 /// Normalizes user input to a URL with scheme and no trailing slashes.
-/// Matches `parseQdrantUrl` in the TS version.
 fn normalize_qdrant_url(url: Option<&str>) -> String {
     let trimmed = url.map(str::trim).unwrap_or("");
     if trimmed.is_empty() {
@@ -68,8 +66,7 @@ fn extract_vector_size(collection_info: &Value) -> usize {
     vectors["size"].as_u64().unwrap_or(0) as usize
 }
 
-/// Directory-prefixed searches over-fetch 4x to compensate for filtering
-/// (matches the TS heuristic).
+/// Directory-prefixed searches over-fetch 4x to compensate for filtering.
 fn effective_search_limit(directory_prefix: Option<&str>, max_results: Option<u32>) -> u32 {
     let base = max_results.unwrap_or(DEFAULT_SEARCH_RESULTS);
     if directory_prefix.is_some() {
@@ -122,7 +119,6 @@ impl QdrantVectorStore {
     }
 
     /// GET collection info; returns None when missing or on any error
-    /// (matches the TS catch-all in `getCollectionInfo`).
     async fn get_collection_info(&self) -> Option<Value> {
         let response = self.client.get(self.collections_url()).send().await.ok()?;
         if !response.status().is_success() {
@@ -156,7 +152,7 @@ impl QdrantVectorStore {
     }
 
     /// Creates the payload indexes; failures are ignored since the index may
-    /// already exist (same as the TS version).
+    /// already exist.
     async fn create_payload_indexes(&self) {
         let url = format!("{}/index", self.collections_url());
         for (field_name, field_schema) in [
@@ -466,8 +462,8 @@ mod tests {
         let id = metadata_point_id();
         assert_eq!(id, metadata_point_id());
         assert_eq!(id.get_version(), Some(uuid::Version::Sha1));
-        // Exact value from RFC-4122 v5 over the constants above — locked so a
-        // Rust/TS index share the sentinel point id.
+        // Exact value from RFC-4122 v5 over the constants above — locked so
+        // the sentinel point id never changes.
         assert_eq!(id.to_string(), "b033a1fc-43f2-55f9-a8b4-9ceb848d50e3");
     }
 

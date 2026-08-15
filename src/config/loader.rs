@@ -1,6 +1,6 @@
 //! Layered configuration loading.
 //!
-//! Port of `src/config/config-loader.ts`. Priority (low to high):
+//! Layered configuration loading. Priority (low to high):
 //! defaults → user config (`~/.config/code-index/config.json`) → project
 //! config (`.code-index.json` / `code-index.config.json`) → environment
 //! variables (`CODE_INDEX_CLI_*`) → CLI flags.
@@ -95,8 +95,7 @@ fn find_project_config(workspace_path: &Path) -> Option<PathBuf> {
 }
 
 /// Reads and parses a JSON config file. Returns `None` (with a warning) for
-/// missing, unreadable, or malformed files — matching the TS behavior of
-/// falling back gracefully.
+/// missing, unreadable, or malformed files — fall back gracefully.
 fn read_config_file(file_path: &Path) -> Option<Map<String, Value>> {
     let content = match std::fs::read_to_string(file_path) {
         Ok(content) => content,
@@ -132,8 +131,8 @@ fn read_config_file(file_path: &Path) -> Option<Map<String, Value>> {
 }
 
 /// Sets a nested value in a JSON object using a dot-separated path, coercing
-/// the string like the TS version: "true"/"false" → bool, parseable → number,
-/// otherwise string.
+/// the string: "true"/"false" → bool, parseable → number, otherwise
+/// string.
 fn set_nested_value(obj: &mut Map<String, Value>, key_path: &str, value: &str) {
     let keys: Vec<&str> = key_path.split('.').collect();
     let mut current = obj;
@@ -180,7 +179,7 @@ fn set_nested_typed(obj: &mut Map<String, Value>, key_path: &str, value: Value) 
 }
 
 /// Deep merges `override_` into `base`. Objects merge recursively; anything
-/// else (arrays, scalars) is replaced. Matches TS `deepMerge`.
+/// else (arrays, scalars) is replaced.
 fn deep_merge(base: &mut Map<String, Value>, override_: Map<String, Value>) {
     for (key, override_value) in override_ {
         match (base.get(&key), &override_value) {

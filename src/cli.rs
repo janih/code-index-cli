@@ -1,7 +1,6 @@
 //! Command-line interface definitions (clap derive).
 //!
-//! Port of `src/index.ts` (commander) — commands and flags must stay
-//! compatible with the TypeScript version.
+//! CLI definitions (clap derive) for all six commands.
 
 use std::path::PathBuf;
 
@@ -111,8 +110,6 @@ enum Commands {
 }
 
 /// Flags shared by all workspace-scoped commands.
-///
-/// Matches `-w/--workspace`, `-c/--config`, `-d/--debug` in the TS CLI.
 /// (`init` is the exception: it takes workspace but no config/debug.)
 #[derive(Args)]
 pub struct WorkspaceArgs {
@@ -334,7 +331,7 @@ mod tests {
 
     #[test]
     fn init_has_no_config_or_debug_flags() {
-        // TS parity: `init` accepts only --workspace and --force.
+        // `init` accepts only --workspace and --force.
         assert!(Cli::try_parse_from(["code-index", "init", "--debug"]).is_err());
         assert!(Cli::try_parse_from(["code-index", "init", "--config", "x"]).is_err());
         assert!(Cli::try_parse_from(["code-index", "init", "-w", "/tmp/ws", "--force"]).is_ok());

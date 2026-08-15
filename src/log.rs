@@ -1,6 +1,6 @@
 //! Logger with `[INFO]`/`[WARN]`/`[ERROR]`/`[DEBUG]` prefixes.
 //!
-//! Port of `src/utils/logger.ts` — debug output is gated behind the `--debug` flag.
+//! Debug output is gated behind the `--debug` flag.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

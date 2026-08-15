@@ -2,10 +2,9 @@
 //!
 //! The `ignore` crate matches literal rules only: a `dir/` rule matches the
 //! directory itself but not files under it (in real git, traversal stops at
-//! the ignored directory). The TS `ignore` npm package reports files under
-//! ignored directories as ignored too. This helper bridges the difference by
-//! checking every ancestor directory — so scanner/watcher filtering matches
-//! the TS behavior.
+//! the ignored directory). This helper bridges the difference by checking
+//! every ancestor directory, so files under ignored directories are filtered
+//! the way git's traversal would.
 
 use std::path::Path;
 

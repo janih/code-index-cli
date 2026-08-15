@@ -1,10 +1,8 @@
 //! Single-request embedders sharing the OpenAI response shape: Mistral,
 //! Vercel AI Gateway, OpenRouter.
 //!
-//! Ports of `src/embedders/{mistral,vercel-ai-gateway,openrouter}.ts`. None
-//! of them batch, retry, or apply query prefixes in the TS version — a
-//! shared parameterized client keeps that exact behavior without
-//! copy-pasting.
+//! None of them batch or retry — a shared parameterized client keeps the
+//! behavior without copy-pasting.
 
 use async_trait::async_trait;
 
@@ -23,7 +21,7 @@ pub struct SimpleHttpEmbedder {
     default_model_id: String,
     error_label: &'static str,
     /// OpenRouter sets attribution headers only when a specific provider is
-    /// configured (faithful quirk from the TS implementation).
+    /// configured.
     specific_provider: Option<String>,
 }
 
@@ -57,7 +55,7 @@ impl SimpleHttpEmbedder {
         model_id: Option<String>,
         specific_provider: Option<String>,
     ) -> Self {
-        // Note the singular `embed` resource (not /embeddings) — TS parity.
+        // Note the singular `embed` resource (not /embeddings).
         Self::build(
             EmbedderProvider::OpenRouter,
             "https://openrouter.ai/api/v1/embeddings",

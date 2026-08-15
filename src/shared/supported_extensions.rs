@@ -1,6 +1,4 @@
 //! Supported file extensions for code indexing.
-//!
-//! Port of `src/shared/supported-extensions.ts`.
 
 /// Extensions the scanner will look for.
 pub const SCANNER_EXTENSIONS: &[&str] = &[

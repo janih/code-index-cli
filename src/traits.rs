@@ -1,7 +1,5 @@
-//! Core traits shared across modules.
-//!
-//! Port of `src/interfaces/*`. Traits exist at exactly the seams the TS
-//! test suite mocks: embedders, vector store, code parser, cache manager.
+//! Core traits shared across modules: the primary extension seams
+//! (embedder, vector store, code parser, cache manager).
 
 use std::collections::HashMap;
 use std::path::Path;

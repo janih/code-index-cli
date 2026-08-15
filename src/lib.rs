@@ -1,7 +1,5 @@
 //! code-index — standalone CLI for codebase indexing with semantic search.
 //!
-//! Rust rewrite of the TypeScript implementation on branch `first-version-build`
-//! (behavioral reference). Intentional differences are listed in AGENTS.md.
 
 pub mod cache;
 pub mod cli;

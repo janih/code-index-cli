@@ -1,4 +1,4 @@
-//! Shared constants, ported 1:1 from `src/shared/constants.ts`.
+//! Shared constants (index-format values; asserted at compile time below).
 
 // Parser
 pub const MAX_BLOCK_CHARS: usize = 1000;
@@ -36,9 +36,7 @@ pub const BATCH_PROCESSING_CONCURRENCY: usize = 10;
 // Gemini Embedder
 pub const GEMINI_MAX_ITEM_TOKENS: usize = 2048;
 
-// Compile-time invariants. The TS version verifies these in runtime unit
-// tests; in Rust a `const` block checks them at build time, which is
-// strictly stronger — a bad edit fails compilation, not a CI test run.
+// Compile-time invariants — a bad edit fails compilation.
 const _: () = {
     // Invariant ordering
     assert!(MAX_BLOCK_CHARS > MIN_BLOCK_CHARS);
@@ -62,8 +60,8 @@ const _: () = {
             && BATCH_SEGMENT_THRESHOLD == 60
     );
 
-    // Qdrant namespace must remain the exact UUID the TS version uses for
-    // deterministic point IDs.
+    // Qdrant namespace for deterministic point IDs — changing it orphans
+    // existing indexes.
     assert!(QDRANT_CODE_BLOCK_NAMESPACE.len() == 36);
     assert!(
         QDRANT_CODE_BLOCK_NAMESPACE.as_bytes()[8] == b'-'

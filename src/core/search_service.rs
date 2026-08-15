@@ -1,6 +1,6 @@
 //! Semantic search service.
 //!
-//! Port of `src/core/search-service.ts`: embed the query (query-prefix
+//! Semantic search: embed the query (query-prefix
 //! aware), vector search, then exact directory-prefix post-filtering.
 
 use std::path::{Path, PathBuf};

@@ -1,6 +1,5 @@
 //! Ollama embedder (`/api/embed`, `/api/tags`).
 //!
-//! Port of `src/embedders/ollama.ts`.
 
 use async_trait::async_trait;
 

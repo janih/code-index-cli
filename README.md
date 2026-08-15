@@ -4,10 +4,9 @@ Standalone CLI that indexes a codebase into a local **Qdrant** vector store and
 answers semantic search queries, as a single small binary (≈4 MB, cold start in
 milliseconds — no Node.js or any runtime required).
 
-This is a Rust rewrite of the original Node.js version (kept on the
-`first-version-build` branch). The port is complete (v0.2.x); intentional
-behavioral differences from the original are documented in the
-**Deviations** section of `AGENTS.md`.
+It succeeds an earlier Node.js tool (preserved on the `first-version-build`
+branch); this Rust codebase is the canonical implementation and carries the
+testing and benchmarking. Known limitations are listed in `AGENTS.md`.
 
 ## Requirements
 
@@ -70,9 +69,9 @@ Provider support matrix:
 | Provider | Status |
 | --- | --- |
 | openai-compatible | E2E-tested (llama-server + local Qdrant) |
-| openai | ported, unit-tested |
-| ollama, gemini, mistral, vercel-ai-gateway, openrouter | ported but **not live-tested** (no API keys at hand) |
-| bedrock | **not ported** — the factory fails with an explicit "deferred" error (needs AWS SigV4 signing) |
+| openai | unit-tested |
+| ollama, gemini, mistral, vercel-ai-gateway, openrouter | implemented, **not live-tested** (no API keys at hand) |
+| bedrock | **not implemented** — the factory fails with an explicit "deferred" error (needs AWS SigV4 signing) |
 
 Unknown models need `embedder.modelDimension` in the config.
 
