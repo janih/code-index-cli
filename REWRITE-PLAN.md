@@ -72,9 +72,16 @@ Deviations found during the port (agreed as TS-gap mirrors):
 - (review round 1, v0.2.1) Parser fallback-chunk start lines were +1 due
   to a ported TS bug (`i + 2` after pre-push flush) — FIXED in the port;
   changes point IDs for multi-block files -> clear + reindex once.
-- (review round 1) The `zip(blocks, embeddings)` truncation concern and
-  per-file DELETE storms are scheduled alongside sanitize-wiring; see the
-  tracking list in CODE-REVIEW.md.
+- (review round 1) `zip(blocks, embeddings)` truncation now fails loudly:
+  a provider returning fewer embeddings than texts aborts the batch
+  instead of silently dropping tail blocks.
+- (review round 1) Scanner skips the stale-point DELETE for files without
+  a cached hash (never indexed): initial scans no longer issue one DELETE
+  per file. Caveat: if the cache file is lost (manual delete, crash
+  between upsert and cache flush) while the collection keeps data,
+  re-indexed files' old points are not removed — recover with
+  `code-index clear && code-index index`. The watcher still deletes
+  unconditionally (self-healing on every touch).
 
 - `--dry-run` is accepted but was never wired into the TS pipeline;
   the Rust port logs a warning instead of pretending it works.

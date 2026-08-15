@@ -172,16 +172,28 @@ impl DirectoryScanner {
                             break;
                         }
 
-                        // Delete stale points for this file BEFORE queueing its
-                        // new blocks. The TS code deleted after upserting
+                        // Delete stale points for this file BEFORE queueing
+                        // its new blocks. The TS code deleted after upserting
                         // (wiping the fresh points); delete-first keeps the
                         // index consistent — see REWRITE-PLAN deviations.
-                        if let Err(err) = self
-                            .vector_store
-                            .delete_points_by_multiple_file_paths(std::slice::from_ref(&file_path))
-                            .await
-                        {
-                            crate::log::error(&format!("Failed to delete stale points: {err}"));
+                        //
+                        // Skipped when the file has no cached hash: a
+                        // never-indexed file has no stale points, and the
+                        // unconditional delete cost one HTTP round-trip per
+                        // file on every initial scan. Cache and collection
+                        // are created/cleared together, so a missing hash
+                        // implies missing points — see the REWRITE-PLAN
+                        // caveat about lost cache files.
+                        if self.cache_manager.get_hash(&file_path).is_some() {
+                            if let Err(err) = self
+                                .vector_store
+                                .delete_points_by_multiple_file_paths(std::slice::from_ref(
+                                    &file_path,
+                                ))
+                                .await
+                            {
+                                crate::log::error(&format!("Failed to delete stale points: {err}"));
+                            }
                         }
 
                         for block in blocks {
@@ -714,6 +726,8 @@ mod tests {
         assert_eq!(outcome.stats.skipped, 0);
         assert_eq!(outcome.total_block_count, 2);
         assert!(!f.store.upserted.lock().unwrap().is_empty());
+        // Fresh scan: no cached hashes => no stale-point deletes (review #10)
+        assert!(f.store.deleted_paths.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -776,6 +790,9 @@ mod tests {
             .await
             .unwrap();
         std::fs::write(&path, file_block_lines(12)).unwrap();
+        // Fresh scan recorded only upserts (no cached hashes yet); reset the
+        // op log so the ordering assertion below covers the re-index only.
+        f.store.ops.lock().unwrap().clear();
         f.scanner
             .scan_directory(&dir, ScanCallbacks::default(), None)
             .await
