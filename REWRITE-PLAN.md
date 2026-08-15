@@ -48,19 +48,19 @@ Each phase ends in a working, committed state. Commits are atomic per AGENTS.md 
 ### Phase 0 — Scaffold ✅ target: binary runs `--help`
 
 - [x] Branch `rust-rewrite` from `main`, this plan committed
-- [ ] `cargo` binary crate `code-index`, edition 2021
-- [ ] `clap` derive CLI matching all 6 commands + flags exactly (from `src/index.ts`)
-- [ ] Module skeleton (empty `mod` files with purpose doc comments)
-- [ ] `cargo build`, `cargo clippy`, `cargo test` green
-- [ ] `.gitignore` for `target/`
+- [x] `cargo` binary crate `code-index`, edition 2021
+- [x] `clap` derive CLI matching all 6 commands + flags exactly (from `src/index.ts`)
+- [x] Module skeleton (empty `mod` files with purpose doc comments)
+- [x] `cargo build`, `cargo clippy`, `cargo test` green
+- [x] `.gitignore` for `target/`
 
-**Acceptance:** `code-index --help` lists init/index/search/watch/status/clear with TS-equivalent flags.
+**Acceptance:** `code-index --help` lists init/index/search/watch/status/clear with TS-equivalent flags. ✅ (635 KB release binary)
 
 ### Phase 1 — Vertical slice: `index` + `search` work for OpenAI
 
 Riskiest integration first: real embedder → real Qdrant round trip.
 
-- [ ] `shared/constants.rs`, `shared/embedding_models.rs` (+ tests, 1:1 data port)
+- [ ] `shared/constants.rs`, `shared/embedding_models.rs`, `shared/supported_extensions.rs` (+ tests, 1:1 data port)
 - [ ] `shared/supported_extensions.rs` (+ tests)
 - [ ] `log.rs` with `--debug` gating + `sanitize_error_message` (redact `sk-*`, Bearer, `api_key=`)
 - [ ] `config/`: schema (serde), layered loader, manager (+ tests)
