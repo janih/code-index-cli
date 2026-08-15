@@ -92,7 +92,7 @@ pub struct Payload {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VectorStoreSearchResult {
     /// Qdrant point id — a UUID string in our usage, but the API also allows ints.
     pub id: serde_json::Value,

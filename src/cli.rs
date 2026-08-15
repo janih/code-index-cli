@@ -118,15 +118,15 @@ enum Commands {
 pub struct WorkspaceArgs {
     /// Workspace directory path
     #[arg(short, long, default_value = ".", value_name = "path")]
-    workspace: PathBuf,
+    pub workspace: PathBuf,
 
     /// Path to configuration file
     #[arg(short, long, value_name = "path")]
-    config: Option<PathBuf>,
+    pub config: Option<PathBuf>,
 
     /// Enable verbose debug output
     #[arg(short, long)]
-    debug: bool,
+    pub debug: bool,
 }
 
 /// Embedder selection flags (`--provider`, `--model`, `--api-key`).
@@ -134,15 +134,15 @@ pub struct WorkspaceArgs {
 pub struct EmbedderArgs {
     /// Embedder provider (openai, ollama, gemini, etc.)
     #[arg(long, value_name = "provider")]
-    provider: Option<String>,
+    pub provider: Option<String>,
 
     /// Embedding model ID
     #[arg(long = "model", value_name = "model-id")]
-    model_id: Option<String>,
+    pub model_id: Option<String>,
 
     /// API key for embedder provider
     #[arg(long, value_name = "key")]
-    api_key: Option<String>,
+    pub api_key: Option<String>,
 }
 
 /// Qdrant connection flags (`--qdrant-url`, `--qdrant-api-key`).
@@ -150,11 +150,11 @@ pub struct EmbedderArgs {
 pub struct QdrantArgs {
     /// Qdrant server URL
     #[arg(long, value_name = "url")]
-    qdrant_url: Option<String>,
+    pub qdrant_url: Option<String>,
 
     /// Qdrant API key
     #[arg(long, value_name = "key")]
-    qdrant_api_key: Option<String>,
+    pub qdrant_api_key: Option<String>,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -166,10 +166,16 @@ pub enum OutputFormat {
 /// Parses CLI arguments and dispatches to the command handlers.
 pub fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    runtime.block_on(dispatch(cli))
+}
 
+async fn dispatch(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Commands::Init { workspace, force } => {
-            commands::init(workspace, force)?;
+            commands::init(workspace, force).await?;
         }
         Commands::Index {
             workspace,
@@ -186,7 +192,8 @@ pub fn run() -> anyhow::Result<()> {
                 qdrant,
                 batch_size,
                 dry_run,
-            )?;
+            )
+            .await?;
         }
         Commands::Search {
             workspace,
@@ -213,7 +220,8 @@ pub fn run() -> anyhow::Result<()> {
                 directory,
                 embedder,
                 qdrant,
-            )?;
+            )
+            .await?;
         }
         Commands::Watch {
             workspace,
@@ -228,15 +236,16 @@ pub fn run() -> anyhow::Result<()> {
                 embedder,
                 qdrant,
                 batch_size,
-            )?;
+            )
+            .await?;
         }
         Commands::Status { workspace } => {
             crate::log::set_debug(workspace.debug);
-            commands::status(workspace.workspace, workspace.config)?;
+            commands::status(workspace.workspace, workspace.config).await?;
         }
         Commands::Clear { workspace } => {
             crate::log::set_debug(workspace.debug);
-            commands::clear(workspace.workspace, workspace.config)?;
+            commands::clear(workspace.workspace, workspace.config).await?;
         }
     }
 
