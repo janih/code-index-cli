@@ -59,8 +59,20 @@ env vars (`CODE_INDEX_CLI_*`, e.g. `CODE_INDEX_CLI_EMBEDDER_API_KEY`) → CLI fl
 
 ## Providers
 
-openai, ollama, openai-compatible, gemini, mistral, vercel-ai-gateway,
-openrouter. **Bedrock is not ported yet** (deferred, needs AWS SigV4).
+**Primary use case: a local setup** — Qdrant on localhost (Docker) + a
+local embedding model served over an **OpenAI-compatible** endpoint
+(e.g. llama-server). That combination is end-to-end tested and used
+by the maintainer day to day.
+
+Provider support matrix:
+
+| Provider | Status |
+| --- | --- |
+| openai-compatible | E2E-tested (llama-server + local Qdrant) |
+| openai | ported, unit-tested |
+| ollama, gemini, mistral, vercel-ai-gateway, openrouter | ported but **not live-tested** (no API keys at hand) |
+| bedrock | **not ported** — the factory fails with an explicit "deferred" error (needs AWS SigV4 signing) |
+
 Unknown models need `embedder.modelDimension` in the config.
 
 ## Data locations
