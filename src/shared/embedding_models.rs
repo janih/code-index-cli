@@ -4,16 +4,28 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// Embedder providers supported by the CLI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// Serde string forms are the TS config values (e.g. `"openai-compatible"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EmbedderProvider {
+    #[serde(rename = "openai")]
     OpenAi,
+    #[serde(rename = "ollama")]
     Ollama,
+    #[serde(rename = "openai-compatible")]
     OpenAiCompatible,
+    #[serde(rename = "gemini")]
     Gemini,
+    #[serde(rename = "mistral")]
     Mistral,
+    #[serde(rename = "vercel-ai-gateway")]
     VercelAiGateway,
+    #[serde(rename = "bedrock")]
     Bedrock,
+    #[serde(rename = "openrouter")]
     OpenRouter,
 }
 
