@@ -19,10 +19,13 @@ pub fn render(
     let mut out = String::new();
     out.push_str("# Search-quality benchmark\n\n");
     out.push_str(&format!(
-        "- Corpus: code-index-cli ({} golden queries)\n",
-        golden.queries.len()
+        "- Corpus: code-index-cli ({} golden queries: {} eval / {} dev-threshold)\n",
+        golden.queries.len(),
+        golden.counts().0,
+        golden.counts().1,
     ));
-    out.push_str("- Search: cosine, threshold −1.0, top-50 raw; metrics computed file-level (deduped by best rank)\n\n");
+    out.push_str("- Search: cosine, threshold −1.0, top-50 raw; metrics computed file-level (deduped by best rank), eval split only\n");
+    out.push_str("- Thresholds: selected on the dev split, F1 evaluated on eval; `@0.40` is the shipped default for comparison\n\n");
 
     out.push_str("## Index sanity (must match across models)\n\n");
     out.push_str(
@@ -47,11 +50,11 @@ pub fn render(
     out.push('\n');
 
     out.push_str("## Retrieval quality\n\n");
-    out.push_str("| Model | R@1 | R@5 | R@10 | MRR@10 | nDCG@10 | ROC-AUC | score gap | best thr (F1) | p50 ms | p95 ms |\n");
-    out.push_str("|---|---|---|---|---|---|---|---|---|---|---|\n");
+    out.push_str("| Model | R@1 | R@5 | R@10 | MRR@10 | nDCG@10 | ROC-AUC | gap | thr(dev) | F1@thr | F1@0.40 | p50 ms | p95 ms |\n");
+    out.push_str("|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
     for m in metrics {
         out.push_str(&format!(
-            "| {} | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {} | {} | {} | {:.0} | {:.0} |\n",
+            "| {} | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {} | {} | {} | {} | {:.2} | {:.0} | {:.0} |\n",
             m.name,
             m.recall_at_1,
             m.recall_at_5,
@@ -61,13 +64,16 @@ pub fn render(
             opt3(m.roc_auc),
             opt3(m.score_gap),
             m.best_threshold
-                .map(|(t, f1)| format!("{t:.2} ({f1:.2})"))
+                .map(|(t, _)| format!("{t:.2}"))
                 .unwrap_or_else(|| "—".into()),
+            opt3(m.eval_f1_at_recommended),
+            m.eval_f1_at_default,
             m.latency_p50_ms,
             m.latency_p95_ms,
         ));
     }
-    out.push_str("\nRaw cosine scores are NOT comparable across models — compare models via rank metrics, AUC and gap.\n\n");
+    out.push_str("\nRaw cosine scores are NOT comparable across models — compare models via rank metrics, AUC and gap.\n");
+    out.push_str("Query-prefixed variants (`+q`) embed queries with the model's instruction template; documents are always embedded raw, matching the shipped CLI.\n\n");
 
     if !bootstrap.is_empty() {
         out.push_str(&format!(

@@ -26,8 +26,12 @@ pub struct ModelMetrics {
     pub roc_auc: Option<f64>,
     /// Mean (relevant − irrelevant) score among top-10 unique files.
     pub score_gap: Option<f64>,
-    /// Threshold maximizing macro-F1 at file level.
-    pub best_threshold: Option<(f64, f64)>, // (threshold, F1)
+    /// (threshold, dev-split F1) selected by the threshold sweep.
+    pub best_threshold: Option<(f64, f64)>,
+    /// Eval-split macro-F1 at the recommended threshold.
+    pub eval_f1_at_recommended: Option<f64>,
+    /// Eval-split macro-F1 at the shipped 0.4 default.
+    pub eval_f1_at_default: f64,
     pub latency_p50_ms: f64,
     pub latency_p95_ms: f64,
     pub index_secs: f64,
@@ -44,6 +48,7 @@ pub fn per_query_recall_at_10(results: &ModelResults, golden: &GoldenSet) -> Has
         .queries
         .iter()
         .filter_map(|q| golden.find(&q.qid).map(|g| (q, g)))
+        .filter(|(_, g)| g.split == "eval")
         .map(|(q, g)| {
             let files = file_ranking(&q.hits);
             let hit = files
@@ -72,6 +77,10 @@ pub fn compute(results: &ModelResults, golden: &GoldenSet) -> ModelMetrics {
         let Some(g) = golden.find(&q.qid) else {
             continue;
         };
+        // Headline metrics use the eval split; dev queries exist for tuning.
+        if g.split != "eval" {
+            continue;
+        }
         latencies.push(q.latency_ms);
 
         let files = file_ranking(&q.hits);
@@ -131,17 +140,19 @@ pub fn compute(results: &ModelResults, golden: &GoldenSet) -> ModelMetrics {
         category.push((g.category.clone(), first_rel.is_some_and(|i| i < TOP_K)));
     }
 
-    // Threshold sweep (file level): a file is retrieved when any of its
-    // blocks scores ≥ t within the returned top-50.
+    // Threshold sweep: SELECT on the dev split (falls back to eval when no
+    // dev queries exist), then evaluate the winner on the eval split.
+    let sweep_split = if golden.has_dev() { "dev" } else { "eval" };
     let mut best = None;
     for step in 1..=19 {
         let t = step as f64 * 0.05;
-        let (precision, recall, f1) = sweep_at(results, golden, t);
+        let (_, _, f1) = sweep_at(results, golden, t, sweep_split);
         if f1 > 0.0 && best.is_none_or(|(_, bf1)| f1 > bf1) {
             best = Some((t, f1));
         }
-        let _ = (precision, recall);
     }
+    let eval_f1_at_recommended = best.map(|(t, _)| sweep_at(results, golden, t, "eval").2);
+    let eval_f1_at_default = sweep_at(results, golden, 0.4, "eval").2;
 
     let mut cat_map: HashMap<String, Vec<bool>> = HashMap::new();
     for (cat, hit) in category {
@@ -196,6 +207,8 @@ pub fn compute(results: &ModelResults, golden: &GoldenSet) -> ModelMetrics {
             _ => None,
         },
         best_threshold: best,
+        eval_f1_at_recommended,
+        eval_f1_at_default,
         latency_p50_ms: percentile(&latencies_sorted, 50.0),
         latency_p95_ms: percentile(&latencies_sorted, 95.0),
         index_secs: results.index.index_secs,
@@ -218,13 +231,16 @@ fn file_ranking(hits: &[Hit]) -> Vec<(String, usize, f32)> {
     ranking
 }
 
-fn sweep_at(results: &ModelResults, golden: &GoldenSet, t: f64) -> (f64, f64, f64) {
+fn sweep_at(results: &ModelResults, golden: &GoldenSet, t: f64, split: &str) -> (f64, f64, f64) {
     let mut precisions = Vec::new();
     let mut recalls = Vec::new();
     for q in &results.queries {
         let Some(g) = golden.find(&q.qid) else {
             continue;
         };
+        if g.split != split {
+            continue;
+        }
         let mut retrieved: Vec<&str> = Vec::new();
         for hit in &q.hits {
             if (hit.score as f64) >= t && !retrieved.contains(&hit.path.as_str()) {

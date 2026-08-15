@@ -40,13 +40,15 @@ One JSON object per line:
 ```
 
 - **File-level, graded**: 2 = the file that answers the query, 1 = partial
-  / supporting. Paths are repo-relative.
+  / supporting (docs count when they genuinely answer). Paths are
+  repo-relative.
 - Queries are phrased as real users would search; avoid pasting identifier
   names into behavior queries (that changes the task to exact-match).
 - Categories: usage, symbol, behavior, config, concurrency, cache, qdrant,
   search.
-- ~6 queries of the set are a dev split for threshold tuning — do not
-  report tuned numbers on the full set.
+- Optional `"split": "dev"` marks threshold-tuning queries (default
+  `eval`): headline metrics report the eval split only; the threshold
+  sweep selects on dev and evaluates the winner on eval.
 
 ## Metrics
 
@@ -68,5 +70,10 @@ One JSON object per line:
   (`meta.n_embd`); set `"dimension"` explicitly if a build omits it.
 - Block counts must match across models in the report's sanity table —
   chunking is deterministic, so any mismatch means a broken run.
+- **Query-prefix ablation**: entries with `queryPrefix` in `models.json`
+  (e.g. `+task`, `+instruct`, `+q` variants) prepend the model's
+  instruction template to queries only — documents are always embedded
+  raw, matching the shipped CLI. That asymmetry is deliberate: it measures
+  what a query-side-only change would buy the product.
 - Model-specific contexts (e.g. `n_ctx_train: 2048` for embeddinggemma)
   are recorded in results; long blocks can be truncated by the server.

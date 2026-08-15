@@ -18,6 +18,14 @@ pub struct GoldenQuery {
     pub query: String,
     pub category: String,
     pub relevant: HashMap<String, u8>,
+    /// "eval" (default) or "dev". Dev queries tune thresholds;
+    /// headline metrics report the eval split only.
+    #[serde(default = "default_split")]
+    pub split: String,
+}
+
+fn default_split() -> String {
+    "eval".to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -97,5 +105,17 @@ impl GoldenSet {
 
     pub fn find(&self, qid: &str) -> Option<&GoldenQuery> {
         self.queries.iter().find(|q| q.id == qid)
+    }
+
+    /// (eval count, dev count).
+    pub fn counts(&self) -> (usize, usize) {
+        (
+            self.queries.iter().filter(|q| q.split == "eval").count(),
+            self.queries.iter().filter(|q| q.split == "dev").count(),
+        )
+    }
+
+    pub fn has_dev(&self) -> bool {
+        self.queries.iter().any(|q| q.split == "dev")
     }
 }
