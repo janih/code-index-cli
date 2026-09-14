@@ -52,6 +52,16 @@ later layers override earlier ones:
 env vars (`CODE_INDEX_CLI_*`, e.g. `CODE_INDEX_CLI_EMBEDDER_API_KEY`) → CLI flags
 (`--provider`, `--model`, `--api-key`, `--qdrant-url`, …).
 
+## Watching multiple projects
+
+`watch` is single-workspace and runs in the foreground, so indexing
+several unrelated projects at once means running it once per project.
+`examples/multi-project-watch/` has a wrapper: a `projects.json` list of
+paths plus scripts that start one `watch` per project — either as plain
+background processes, or (macOS) as LaunchAgents that start at login and
+restart on crash. Combine it with the global config above so adding a
+project needs no per-project `.code-index.json` at all.
+
 ## Providers
 
 **Primary use case: a local setup** — Qdrant on localhost (Docker) + a
