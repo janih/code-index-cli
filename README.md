@@ -110,5 +110,3 @@ cargo fmt
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
-
-See `AGENTS.md` for contributor conventions (atomic commits etc.).

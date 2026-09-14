@@ -29,6 +29,7 @@ Run fmt + clippy + tests **before every commit**.
 - Before committing: confirm build, lint and tests pass.
 - Ask before modifying `package.json`/`Cargo.toml` manifest structure,
   lockfiles, or deleting files.
+- Prefixes: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`, `perf:`. **No bylines** — no `Co-authored-by`, no agent attribution, no generated-by footers.
 
 ## Codebase Structure
 
