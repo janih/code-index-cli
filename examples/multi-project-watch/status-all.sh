@@ -7,11 +7,15 @@
 # startup or when a batch is processed, so a quiet project's log tail
 # can be hours old even while the watcher is alive and fine; the age
 # is there so that doesn't read as "it died right after printing that".
+#
+# Pass a group name to scope to just that group, e.g. `status-all.sh work`.
 set -euo pipefail
 
-CONF="$HOME/.config/code-index/projects.json"
-RUN_DIR="$HOME/.config/code-index/run"
-LOG_DIR="$HOME/.config/code-index/logs"
+CONF_DIR="$HOME/.config/code-index"
+CONF="$CONF_DIR/projects.json"
+RUN_DIR="$CONF_DIR/run"
+LOG_DIR="$CONF_DIR/logs"
+GROUP="${1:-}"
 
 age() {
   local mtime now delta
@@ -25,9 +29,11 @@ age() {
   fi
 }
 
-python3 -c 'import json,sys; [print(p) for p in json.load(open(sys.argv[1]))]' "$CONF" |
-while IFS= read -r path; do
-  name=$(basename "$path")
+# Captured, not process-substituted — see watch-all.sh for why.
+resolved=$(python3 "$CONF_DIR/scripts/resolve_projects.py" "$CONF" "$GROUP")
+[[ -z "$resolved" ]] && exit 0
+
+while IFS=$'\t' read -r group name path; do
   pidfile="$RUN_DIR/$name.pid"
   logfile="$LOG_DIR/$name.log"
 
@@ -37,8 +43,7 @@ while IFS= read -r path; do
     ll_out=$(launchctl list "com.code-index.watch.$name" 2>/dev/null || true)
     if [[ -n "$ll_out" ]]; then
       ll_pid=$(awk -F'= ' '/"PID"/{gsub(";","",$2); print $2}' <<<"$ll_out")
-      state="launchd${ll_pid:+ (pid $ll_pid)}${ll_pid:+}"
-      [[ -z "$ll_pid" ]] && state="launchd (loaded, not running)"
+      if [[ -n "$ll_pid" ]]; then state="launchd (pid $ll_pid)"; else state="launchd (loaded, not running)"; fi
     else
       state="stopped"
     fi
@@ -52,5 +57,5 @@ while IFS= read -r path; do
     last=$(tail -n 1 "$logfile" 2>/dev/null || true)
     logage=" [$(age "$logfile")]"
   fi
-  printf "%-26s %-30s %s%s\n" "$state" "$name" "$last" "$logage"
-done
+  printf "%-26s %-10s %-30s %s%s\n" "$state" "[$group]" "$name" "$last" "$logage"
+done <<<"$resolved"

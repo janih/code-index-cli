@@ -14,7 +14,7 @@ settings: once that's set, adding a project here needs no per-project
 
 ```sh
 mkdir -p ~/.config/code-index/scripts
-for f in examples/multi-project-watch/*.sh; do
+for f in examples/multi-project-watch/*.sh examples/multi-project-watch/resolve_projects.py; do
   ln -sf "$(pwd)/$f" ~/.config/code-index/scripts/"$(basename "$f")"
 done
 [[ -f ~/.config/code-index/projects.json ]] || cp examples/multi-project-watch/projects.json.example ~/.config/code-index/projects.json
@@ -25,14 +25,49 @@ effect the next time you run it — no re-copy step to remember. Use a plain
 `cp` instead only if you want a version pinned independent of this repo's
 working tree.
 
-Edit `~/.config/code-index/projects.json` to list your project paths:
+Edit `~/.config/code-index/projects.json` to list your project paths,
+grouped however you like — a common split is `work` / `private`:
 
 ```json
-[
-  "/path/to/project-a",
-  "/path/to/project-b"
-]
+{
+  "work": [
+    "/path/to/work-project-a",
+    "/path/to/work-project-b"
+  ],
+  "private": [
+    "/path/to/private-project"
+  ]
+}
 ```
+
+A flat array (`["/path/a", "/path/b"]`, the pre-grouping format) still
+works — it's treated as one implicit group named `default`.
+
+## Groups
+
+Every script below takes an optional trailing group name, e.g.
+`watch-all.sh work` or `install-launchagents.sh private`, scoping it to
+just that group's projects; with no argument, every group is included.
+That's the lever for "stop watching work, start watching private (or
+vice versa) on demand":
+
+```sh
+~/.config/code-index/scripts/uninstall-launchagents.sh work      # stop + remove work's agents only
+~/.config/code-index/scripts/install-launchagents.sh private     # (re)install private's agents
+# ...later, switch back:
+~/.config/code-index/scripts/uninstall-launchagents.sh private
+~/.config/code-index/scripts/install-launchagents.sh work
+```
+
+`install-launchagents.sh` and `uninstall-launchagents.sh` with no
+argument still operate on every project across every group — scoping is
+opt-in per invocation, not a mode switch.
+
+Project names (a path's basename) must stay unique across *all* groups,
+not just within one — the pidfile, log file, and LaunchAgent label are
+all keyed by name alone, so two different groups both containing e.g. a
+`spm/` directory would collide. `resolve_projects.py` warns on stderr if
+it finds one.
 
 **Pick one mode per machine and stick with it.** Two watchers on the same
 workspace race over the same hash cache file — the concrete failure mode
@@ -48,9 +83,9 @@ Option A watcher is fine (it stops those first), the risk is only ever
 ## Option A — plain background processes
 
 ```sh
-~/.config/code-index/scripts/watch-all.sh    # start (skips already-running/launchd-managed projects)
-~/.config/code-index/scripts/status-all.sh   # running/launchd/stopped + last log line + its age, per project
-~/.config/code-index/scripts/stop-all.sh     # SIGINT each one so its cache flushes cleanly
+~/.config/code-index/scripts/watch-all.sh [group]    # start (skips already-running/launchd-managed projects)
+~/.config/code-index/scripts/status-all.sh [group]   # running/launchd/stopped + last log line + its age, per project
+~/.config/code-index/scripts/stop-all.sh [group]     # SIGINT each one so its cache flushes cleanly
 ```
 
 `status-all.sh` checks both modes (it'll report `launchd (pid ...)` for a
@@ -71,9 +106,9 @@ run it again after each reboot, or use Option B.
 ## Option B — macOS LaunchAgents (start at login, restart on crash)
 
 ```sh
-~/.config/code-index/scripts/install-launchagents.sh    # generate + load one agent per project
-~/.config/code-index/scripts/status-launchd.sh           # PID + exit status per agent
-~/.config/code-index/scripts/uninstall-launchagents.sh   # stop + remove all of them
+~/.config/code-index/scripts/install-launchagents.sh [group]    # generate + load agents
+~/.config/code-index/scripts/status-launchd.sh [group]           # PID + exit status per agent
+~/.config/code-index/scripts/uninstall-launchagents.sh [group]   # stop + remove agents
 ```
 
 Each project gets `~/Library/LaunchAgents/com.code-index.watch.<name>.plist`

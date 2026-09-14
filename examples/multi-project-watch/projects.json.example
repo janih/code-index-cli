@@ -1,4 +1,9 @@
-[
-  "/path/to/project-a",
-  "/path/to/project-b"
-]
+{
+  "work": [
+    "/path/to/work-project-a",
+    "/path/to/work-project-b"
+  ],
+  "private": [
+    "/path/to/private-project"
+  ]
+}
