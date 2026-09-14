@@ -49,9 +49,19 @@ Option A watcher is fine (it stops those first), the risk is only ever
 
 ```sh
 ~/.config/code-index/scripts/watch-all.sh    # start (skips already-running/launchd-managed projects)
-~/.config/code-index/scripts/status-all.sh   # running/stopped + last log line, per project
+~/.config/code-index/scripts/status-all.sh   # running/launchd/stopped + last log line + its age, per project
 ~/.config/code-index/scripts/stop-all.sh     # SIGINT each one so its cache flushes cleanly
 ```
+
+`status-all.sh` checks both modes (it'll report `launchd (pid ...)` for a
+project running under Option B), because reporting "stopped" next to a
+log line from a process that's actually alive under launchd — just quiet
+— reads as a contradiction. The log tail itself can't tell you that on
+its own either: `code-index watch` only prints on startup or when a
+batch is processed, so an idle project's last line can be hours old
+whether the watcher is alive-and-waiting or long dead — hence the `[Xm
+ago]` age on it, and hence checking real process state rather than
+trusting the log's content to imply anything about the present.
 
 Logs land at `~/.config/code-index/logs/<project-name>.log`, pid files at
 `~/.config/code-index/run/<project-name>.pid`. Re-run `watch-all.sh`
