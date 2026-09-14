@@ -24,6 +24,15 @@ while IFS= read -r path; do
   name=$(basename "$path")
   pidfile="$RUN_DIR/$name.pid"
 
+  # Refuse to start a second watcher for a project already managed by a
+  # LaunchAgent (install-launchagents.sh) — this pidfile-only check can't
+  # see those, and two watchers on one workspace race over the same hash
+  # cache file. macOS only; harmless no-op where launchctl doesn't exist.
+  if command -v launchctl >/dev/null 2>&1 && launchctl list "com.code-index.watch.$name" >/dev/null 2>&1; then
+    echo "already managed by launchd: $name — use install-launchagents.sh instead, skipping" >&2
+    continue
+  fi
+
   if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
     echo "already running: $name ($(cat "$pidfile"))"
     continue

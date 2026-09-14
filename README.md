@@ -58,9 +58,12 @@ env vars (`CODE_INDEX_CLI_*`, e.g. `CODE_INDEX_CLI_EMBEDDER_API_KEY`) → CLI fl
 several unrelated projects at once means running it once per project.
 `examples/multi-project-watch/` has a wrapper: a `projects.json` list of
 paths plus scripts that start one `watch` per project — either as plain
-background processes, or (macOS) as LaunchAgents that start at login and
-restart on crash. Combine it with the global config above so adding a
-project needs no per-project `.code-index.json` at all.
+background processes (`watch-all.sh`), or (macOS) as LaunchAgents that
+start at login and restart on crash (`install-launchagents.sh`). Combine
+it with the global config above so adding a project needs no per-project
+`.code-index.json` at all. Pick one of the two modes per machine and use
+that script consistently to add new projects — see that directory's
+README for what goes wrong otherwise.
 
 ## Agent harness integrations
 

@@ -14,10 +14,16 @@ settings: once that's set, adding a project here needs no per-project
 
 ```sh
 mkdir -p ~/.config/code-index/scripts
-cp examples/multi-project-watch/*.sh ~/.config/code-index/scripts/
-chmod +x ~/.config/code-index/scripts/*.sh
-cp examples/multi-project-watch/projects.json.example ~/.config/code-index/projects.json
+for f in examples/multi-project-watch/*.sh; do
+  ln -sf "$(pwd)/$f" ~/.config/code-index/scripts/"$(basename "$f")"
+done
+[[ -f ~/.config/code-index/projects.json ]] || cp examples/multi-project-watch/projects.json.example ~/.config/code-index/projects.json
 ```
+
+Symlinked, not copied, so a fix to a script here (like the one below) takes
+effect the next time you run it — no re-copy step to remember. Use a plain
+`cp` instead only if you want a version pinned independent of this repo's
+working tree.
 
 Edit `~/.config/code-index/projects.json` to list your project paths:
 
@@ -28,10 +34,21 @@ Edit `~/.config/code-index/projects.json` to list your project paths:
 ]
 ```
 
+**Pick one mode per machine and stick with it.** Two watchers on the same
+workspace race over the same hash cache file — the concrete failure mode
+this bit in practice: adopt Option B, then later add a project by
+re-running Option A's `watch-all.sh` out of habit, which starts a second,
+untracked watcher for every project *already* under launchd. `watch-all.sh`
+now refuses to do that (it checks for a matching LaunchAgent first and
+skips with a message instead), but there's no equivalent guard the other
+way — running `install-launchagents.sh` while a project has a manual
+Option A watcher is fine (it stops those first), the risk is only ever
+"Option A script started after Option B already owns a project."
+
 ## Option A — plain background processes
 
 ```sh
-~/.config/code-index/scripts/watch-all.sh    # start (skips already-running projects)
+~/.config/code-index/scripts/watch-all.sh    # start (skips already-running/launchd-managed projects)
 ~/.config/code-index/scripts/status-all.sh   # running/stopped + last log line, per project
 ~/.config/code-index/scripts/stop-all.sh     # SIGINT each one so its cache flushes cleanly
 ```
@@ -56,9 +73,8 @@ being down, doesn't spin-loop). Re-run `install-launchagents.sh` after
 editing `projects.json` — it also removes agents for projects no longer
 listed.
 
-`install-launchagents.sh` stops anything started via `watch-all.sh` first.
-**Don't run both options for the same project** — two watchers on one
-workspace will race over the same hash cache file.
+`install-launchagents.sh` stops anything started via `watch-all.sh` first
+(the reverse case — see the warning above).
 
 Once a project is under launchd, stop/restart it with `launchctl`, not
 `kill` — a raw `kill` just gets it restarted by `KeepAlive`:
