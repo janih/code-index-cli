@@ -64,11 +64,11 @@ project needs no per-project `.code-index.json` at all.
 
 ## Agent harness integrations
 
-`integrations/` has tool-call integrations so an agent can query
-code-index-cli directly instead of shelling out to `code-index search
---format json` itself — currently a [pi](https://github.com/earendil-works/pi)
-extension (`integrations/pi/`). More harnesses can land as sibling
-subdirectories there.
+`integrations/` has integrations so an agent can query code-index-cli
+directly rather than rediscovering the CLI from scratch each session —
+currently a [pi](https://github.com/earendil-works/pi) tool extension
+(`integrations/pi/`) and a Claude Code Skill (`integrations/claude-code/`).
+More harnesses can land as sibling subdirectories there.
 
 ## Providers
 
