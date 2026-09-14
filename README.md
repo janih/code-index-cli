@@ -62,6 +62,14 @@ background processes, or (macOS) as LaunchAgents that start at login and
 restart on crash. Combine it with the global config above so adding a
 project needs no per-project `.code-index.json` at all.
 
+## Agent harness integrations
+
+`integrations/` has tool-call integrations so an agent can query
+code-index-cli directly instead of shelling out to `code-index search
+--format json` itself — currently a [pi](https://github.com/earendil-works/pi)
+extension (`integrations/pi/`). More harnesses can land as sibling
+subdirectories there.
+
 ## Providers
 
 **Primary use case: a local setup** — Qdrant on localhost (Docker) + a
