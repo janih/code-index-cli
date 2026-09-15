@@ -108,8 +108,33 @@ those files.
 
 ## Development
 
+Quality gates — run before every commit:
+
 ```sh
 cargo fmt
 cargo clippy --all-targets -- -D warnings
 cargo test
+```
+
+### Releasing a new version
+
+1. Bump `version` in `Cargo.toml`.
+2. Reinstall the binary to `~/.cargo/bin/code-index` (release profile,
+   so LTO + strip from `Cargo.toml` apply):
+
+```sh
+cargo install --path .
+code-index --version   # confirm the new version is active
+```
+
+Just building without installing works too:
+
+```sh
+cargo build --release   # binary at target/release/code-index
+```
+
+Cross-compile for Linux:
+
+```sh
+cargo build --release --target x86_64-unknown-linux-musl
 ```
