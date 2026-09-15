@@ -85,7 +85,7 @@ Option A watcher is fine (it stops those first), the risk is only ever
 ```sh
 ~/.config/code-index/scripts/watch-all.sh [group]    # start (skips already-running/launchd-managed projects)
 ~/.config/code-index/scripts/status-all.sh [group]   # running/launchd/stopped + last log line + its age, per project
-~/.config/code-index/scripts/stop-all.sh [group]     # SIGINT each one so its cache flushes cleanly
+~/.config/code-index/scripts/stop-all.sh [group]     # SIGINT each one so its cache flushes cleanly; stderr-warns on launchd-managed projects instead of silently skipping
 ```
 
 `status-all.sh` checks both modes (it'll report `launchd (pid ...)` for a

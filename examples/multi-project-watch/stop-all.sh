@@ -7,7 +7,10 @@
 # `stop-all.sh work`.
 #
 # Doesn't touch LaunchAgent-managed watchers — use
-# uninstall-launchagents.sh for those.
+# uninstall-launchagents.sh for those. A listed project with no pidfile
+# whose watcher is launchd-managed is skipped with a warning on stderr
+# (stdout stays clean; install-launchagents.sh calls this script with
+# stderr suppressed, so its internal stop doesn't echo these).
 set -euo pipefail
 
 CONF_DIR="$HOME/.config/code-index"
@@ -17,7 +20,18 @@ GROUP="${1:-}"
 
 stop_one() {
   local name="$1" pidfile="$RUN_DIR/$1.pid" label_prefix="${2:-}"
-  [[ -f "$pidfile" ]] || return 0
+
+  if [[ ! -f "$pidfile" ]]; then
+    # No Option-A watcher to stop. If a LaunchAgent owns this project,
+    # warn instead of returning silently: status-all.sh reports both
+    # modes, so it's easy to assume this script stops both — it doesn't,
+    # uninstall-launchagents.sh does. Same launchctl probe watch-all.sh
+    # uses; macOS only, harmless no-op where launchctl doesn't exist.
+    if command -v launchctl >/dev/null 2>&1 && launchctl list "com.code-index.watch.$name" >/dev/null 2>&1; then
+      echo "skipped: ${label_prefix}${name} is launchd-managed — use uninstall-launchagents.sh to stop it" >&2
+    fi
+    return 0
+  fi
   local pid
   pid=$(cat "$pidfile")
   if kill -0 "$pid" 2>/dev/null; then
