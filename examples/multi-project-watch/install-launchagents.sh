@@ -65,6 +65,14 @@ if [[ -n "$resolved" ]]; then
 EOF
 
     launchctl bootout "$UID_GUI/$label" >/dev/null 2>&1 || true
+    # bootout can return before the job is fully torn down; bootstrapping
+    # the label while it's still going away fails with
+    # "Bootstrap failed: 5: Input/output error". Wait (up to ~10s) for it
+    # to disappear first.
+    for _ in {1..50}; do
+      launchctl print "$UID_GUI/$label" >/dev/null 2>&1 || break
+      sleep 0.2
+    done
     launchctl bootstrap "$UID_GUI" "$plist"
     echo "installed + started: [$group] $label"
   done <<<"$resolved"
