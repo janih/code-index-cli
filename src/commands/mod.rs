@@ -20,7 +20,7 @@ pub async fn init(workspace: PathBuf, force: bool) -> anyhow::Result<()> {
 
     if config_path.exists() && !force {
         println!(
-            "⚠️  Configuration file already exists at {}",
+            "Configuration file already exists at {}",
             config_path.display()
         );
         println!("   Use --force to overwrite.");
@@ -54,7 +54,7 @@ pub async fn init(workspace: PathBuf, force: bool) -> anyhow::Result<()> {
         serde_json::to_string_pretty(&template)? + "\n",
     )?;
 
-    println!("✅ Configuration file created at {}", config_path.display());
+    println!("Configuration file created at {}", config_path.display());
     println!();
     println!("Next steps:");
     println!("  1. Edit the config file to set your embedder provider and API key");
@@ -79,7 +79,7 @@ pub async fn index(
         crate::log::warn("--dry-run is accepted for compatibility but not implemented yet");
     }
 
-    println!("🔍 Starting codebase indexing...");
+    println!("Starting codebase indexing...");
     println!("   Workspace: {}", workspace.display());
 
     let flags = CliFlags {
@@ -120,7 +120,7 @@ pub async fn index(
     );
 
     // Validate embedder
-    println!("⏳ Validating embedder configuration...");
+    println!("Validating embedder configuration...");
     let embedder = factory.create_embedder()?;
     let validation = factory.validate_embedder(embedder.as_ref()).await;
     if !validation.valid {
@@ -129,7 +129,7 @@ pub async fn index(
             validation.error.unwrap_or_default()
         );
     }
-    println!("✅ Embedder configuration valid");
+    println!("Embedder configuration valid");
     println!();
 
     // Progress reporting
@@ -153,7 +153,7 @@ pub async fn index(
     cache_manager.flush().await.ok();
     println!();
     result?;
-    println!("✅ Indexing complete!");
+    println!("Indexing complete!");
     Ok(())
 }
 
@@ -229,7 +229,7 @@ fn display_results(query: &str, results: &[VectorStoreSearchResult], limit: Opti
         .collect::<Vec<_>>();
 
     println!();
-    println!("🔍 Search results for: \"{query}\"");
+    println!("Search results for: \"{query}\"");
     match limit {
         Some(_) => println!(
             "   Found {} results (showing {})",
@@ -276,7 +276,7 @@ pub async fn watch(
 ) -> anyhow::Result<()> {
     use std::collections::HashMap;
 
-    println!("👀 Starting codebase indexing with file watcher...");
+    println!("Starting codebase indexing with file watcher...");
     println!("   Workspace: {}", workspace.display());
 
     let flags = CliFlags {
@@ -316,7 +316,7 @@ pub async fn watch(
         Arc::clone(&cache_manager),
     );
 
-    println!("⏳ Validating embedder configuration...");
+    println!("Validating embedder configuration...");
     let embedder = factory.create_embedder()?;
     let validation = factory.validate_embedder(embedder.as_ref()).await;
     if !validation.valid {
@@ -325,7 +325,7 @@ pub async fn watch(
             validation.error.unwrap_or_default()
         );
     }
-    println!("✅ Embedder configuration valid");
+    println!("Embedder configuration valid");
     println!();
 
     // Progress reporting
@@ -339,7 +339,7 @@ pub async fn watch(
             use std::io::Write;
             let _ = std::io::stdout().flush();
         }
-        IndexingState::Indexed => println!("\n✅ {}", status.message),
+        IndexingState::Indexed => println!("\n{}", status.message),
         _ => {}
     }));
 
@@ -350,7 +350,7 @@ pub async fn watch(
         anyhow::bail!("Indexing failed");
     }
 
-    println!("\n👀 Watching for file changes... (Press Ctrl+C to stop)");
+    println!("\nWatching for file changes... (Press Ctrl+C to stop)");
 
     // Wire the watcher onto the already-validated services
     let vector_store = factory.create_vector_store()?;
@@ -372,10 +372,10 @@ pub async fn watch(
         let next_deadline = (!pending.is_empty()).then(|| tokio::time::Instant::now() + debounce);
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
-                println!("\n⏳ Stopping...");
+                println!("\nStopping...");
                 orchestrator.stop_indexing();
                 cache_manager.flush().await.ok();
-                println!("👋 Stopped.");
+                println!("Stopped.");
                 return Ok(());
             }
             event = events.recv() => {
@@ -420,7 +420,7 @@ pub async fn watch(
                 }
                 if summary.batch_error.is_none() {
                     println!(
-                        "\n📝 {} files changed: {} updated, {} skipped, {} errors",
+                        "\n{} files changed: {} updated, {} skipped, {} errors",
                         summary.processed_files.len(),
                         summary.success_count(),
                         summary
@@ -441,15 +441,15 @@ pub async fn watch(
 pub async fn status(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow::Result<()> {
     let config_manager = ConfigManager::new(load_config(&workspace, config_path.as_deref(), None)?);
 
-    println!("📊 Codebase Index Status");
+    println!("Codebase Index Status");
     println!();
     println!("  Workspace:      {}", workspace.display());
     println!(
         "  Configured:     {}",
         if config_manager.is_feature_configured() {
-            "✅ Yes"
+            "Yes"
         } else {
-            "❌ No"
+            "No"
         }
     );
     println!("  Provider:       {}", config_manager.embedder_provider());
@@ -476,21 +476,18 @@ pub async fn status(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow:
             let vector_store = factory.create_vector_store()?;
 
             if vector_store.collection_exists().await? {
-                println!("  Collection:     ✅ Exists");
+                println!("  Collection:     Exists");
                 let has_data = vector_store.has_indexed_data().await?;
-                println!(
-                    "  Has Data:       {}",
-                    if has_data { "✅ Yes" } else { "❌ No" }
-                );
+                println!("  Has Data:       {}", if has_data { "Yes" } else { "No" });
                 println!("  Cached Files:   {}", cache_manager.get_all_hashes().len());
             } else {
-                println!("  Collection:     ❌ Not found");
+                println!("  Collection:     Not found");
             }
             Ok::<(), anyhow::Error>(())
         };
 
         if let Err(err) = connect.await {
-            println!("  Qdrant:         ❌ Cannot connect ({err})");
+            println!("  Qdrant:         Cannot connect ({err})");
         }
     }
 
@@ -499,7 +496,7 @@ pub async fn status(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow:
 
 /// `code-index clear`: remove all index data
 pub async fn clear(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow::Result<()> {
-    println!("🗑️  Clearing index data...");
+    println!("Clearing index data...");
 
     let config_manager = ConfigManager::new(load_config(&workspace, config_path.as_deref(), None)?);
 
@@ -519,6 +516,6 @@ pub async fn clear(workspace: PathBuf, config_path: Option<PathBuf>) -> anyhow::
         cache_manager.clear_cache_file();
     }
 
-    println!("✅ Index data cleared successfully.");
+    println!("Index data cleared successfully.");
     Ok(())
 }
